@@ -11,8 +11,9 @@
     <dd>{{ snapshot.name }}</dd>
     <dt>{% trans "ID" %}</dt>
     <dd>{{ snapshot.id }}</dd>
+    {% url 'horizon:admin:shares:detail' snapshot.share_id as share_url %}
     <dt>{% trans "Source" %}</dt>
-    <dd>{{ snapshot.share_id }}</dd>
+    <dd><a href="{{ share_url }}">{{ snapshot.share_name_or_id }}</a></dd>
     {% if snapshot.description %}
     <dt>{% trans "Description" %}</dt>
     <dd>{{ snapshot.description }}</dd>

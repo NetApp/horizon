@@ -53,6 +53,8 @@ class SnapshotDetailView(tabs.TabView):
         try:
             snapshot_id = self.kwargs['snapshot_id']
             snapshot = manila.share_snapshot_get(self.request, snapshot_id)
+            share = manila.share_get(self.request, snapshot.share_id)
+            snapshot.share_name_or_id = share.name or share.id
         except Exception:
             redirect = reverse('horizon:project:shares:index')
             exceptions.handle(self.request,

@@ -23,6 +23,7 @@ from horizon import messages
 from openstack_dashboard.api import keystone
 from openstack_dashboard.api import manila
 from openstack_dashboard.api import neutron
+from openstack_dashboard.dashboards import utils
 
 
 VT_EXTRA_SPECS_FORM_ATTRS = {
@@ -32,47 +33,6 @@ VT_EXTRA_SPECS_FORM_ATTRS = {
 }
 
 
-def parse_str_meta(meta_s):
-    """Parse multiline string with extra_specs.
-
-    :option meta_s: str - string with keys and values of extra specs
-    :returns: tuple of dict with key-value for set and list with keys for unset
-    :raises: ValidationError
-    """
-    strings = [el.strip() for el in meta_s.split("\n") if len(el.strip()) > 0]
-    set_dict = {}
-    unset_list = []
-    msg = ""
-    for string in strings:
-        if string.count("=") == 1:
-            pair = [p.strip() for p in string.split("=")]
-            if not all(len(p) in range(1, 256) for p in pair):
-                msg = _("All keys and values must be in range from 1 to 255.")
-            elif pair[0] in set_dict.keys():
-                msg = _("Duplicated keys '%s'.") % pair[0]
-            elif any(" " in p for p in pair):
-                msg = _("Keys and values should not contain spaces. "
-                        "Error in '%s'.") % string
-            else:
-                set_dict[pair[0]] = pair[1]
-        elif string.count("=") == 0:
-            s = string.strip()
-            if len(s) not in range(1, 256):
-                msg = _("Key '%s' has inproper length.") % s
-            elif " " in s:
-                msg = _("Key can not contain spaces. See string '%s'.") % s
-            elif s not in unset_list:
-                unset_list.append(s)
-        else:
-            msg = _("Wrong data provided in string '%s'.") % string
-    duplicated_keys = [uk for uk in unset_list if uk in set_dict.keys()]
-    if duplicated_keys:
-        msg = _("Duplicated keys '%s'.") % str(duplicated_keys)
-    if msg:
-        raise ValidationError(message=msg)
-    return set_dict, unset_list
-
-
 class CreateVolumeType(forms.SelfHandlingForm):
     name = forms.CharField(max_length="255", label=_("Name"))
     extra_specs = forms.CharField(required=False, label=_("Extra specs"),
@@ -80,7 +40,7 @@ class CreateVolumeType(forms.SelfHandlingForm):
 
     def handle(self, request, data):
         try:
-            set_dict, unset_list = parse_str_meta(data['extra_specs'])
+            set_dict, unset_list = utils.parse_str_meta(data['extra_specs'])
             if unset_list:
                 msg = _("Expected only pairs of key=value.")
                 raise ValidationError(message=msg)
@@ -118,7 +78,7 @@ class UpdateVolumeType(forms.SelfHandlingForm):
 
     def handle(self, request, data):
         try:
-            set_dict, unset_list = parse_str_meta(data['extra_specs'])
+            set_dict, unset_list = utils.parse_str_meta(data['extra_specs'])
             if set_dict:
                 manila.volume_type_set_extra_specs(request,
                                                    self.initial["id"],

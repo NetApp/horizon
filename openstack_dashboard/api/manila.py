@@ -212,6 +212,14 @@ def share_network_security_service_list(request, share_network_id):
         search_opts={'share_network_id': share_network_id})
 
 
+def share_set_metadata(request, share_id, metadata):
+    return manilaclient(request).shares.set_metadata(share_id, metadata)
+
+
+def share_delete_metadata(request, share_id, keys):
+    return manilaclient(request).shares.delete_metadata(share_id, keys)
+
+
 def tenant_quota_get(request, tenant_id):
     return base.QuotaSet(manilaclient(request).quotas.get(tenant_id))
 

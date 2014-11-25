@@ -17,6 +17,7 @@
 from django.core.urlresolvers import NoReverseMatch  # noqa
 from django.core.urlresolvers import reverse
 from django.template.defaultfilters import title  # noqa
+from django.utils.safestring import mark_safe
 from django.utils.translation import string_concat, ugettext_lazy  # noqa
 from django.utils.translation import ugettext_lazy as _
 from horizon import exceptions
@@ -95,6 +96,23 @@ class EditShare(tables.LinkAction):
         return share.status in ("available", "in-use")
 
 
+class EditShareMetadata(tables.LinkAction):
+    name = "update_metadata"
+    verbose_name = _("Edit Share Metadata")
+    url = "horizon:project:shares:update_metadata"
+    classes = ("ajax-modal", "btn-create")
+    policy_rules = (("share", "share:update_share_metadata"),)
+
+    def get_policy_target(self, request, datum=None):
+        project_id = None
+        if datum:
+            project_id = getattr(datum, "os-share-tenant-attr:tenant_id", None)
+        return {"project_id": project_id}
+
+    def allowed(self, request, share=None):
+        return share.status in ("available", "in-use")
+
+
 class UpdateRow(tables.Row):
     ajax = True
 
@@ -107,6 +125,12 @@ class UpdateRow(tables.Row):
             share.share_network = share_net.name or share_net.id
         else:
             share.share_network = None
+        meta = []
+        for k, v in share.metadata.iteritems():
+            meta.append("%s=%s" % (k, v))
+        meta_str = "<br/>".join(meta)
+        share.metadata = mark_safe(meta_str)
+
         return share
 
 
@@ -127,6 +151,9 @@ class SharesTableBase(tables.DataTable):
     description = tables.Column("description",
                                 verbose_name=_("Description"),
                                 truncate=40)
+    metadata = tables.Column("metadata",
+                             verbose_name=_("Metadata"),
+                             truncate=60)
     size = tables.Column(get_size,
                          verbose_name=_("Size"),
                          attrs={'data-type': 'size'})
@@ -237,4 +264,4 @@ class SharesTable(SharesTableBase):
         row_class = UpdateRow
         table_actions = (CreateShare, DeleteShare, SharesFilterAction)
         row_actions = (EditShare, snapshot_tables.CreateSnapshot, DeleteShare,
-                       ManageRules)
+                       ManageRules, EditShareMetadata)

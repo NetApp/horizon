@@ -126,6 +126,33 @@ class UpdateView(forms.ModalFormView):
                 'description': share.description}
 
 
+class UpdateMetadataView(forms.ModalFormView):
+    form_class = share_form.UpdateMetadataForm
+    template_name = 'project/shares/shares/update_metadata.html'
+    success_url = reverse_lazy("horizon:project:shares:index")
+
+    def get_object(self):
+        if not hasattr(self, "_object"):
+            vol_id = self.kwargs['share_id']
+            try:
+                self._object = manila.share_get(self.request, vol_id)
+            except Exception:
+                msg = _('Unable to retrieve share.')
+                url = reverse('horizon:project:shares:index')
+                exceptions.handle(self.request, msg, redirect=url)
+        return self._object
+
+    def get_context_data(self, **kwargs):
+        context = super(UpdateMetadataView, self).get_context_data(**kwargs)
+        context['share'] = self.get_object()
+        return context
+
+    def get_initial(self):
+        share = self.get_object()
+        return {'share_id': self.kwargs["share_id"],
+                'metadata': share.metadata}
+
+
 class AddRuleView(forms.ModalFormView):
     form_class = share_form.AddRule
     template_name = 'project/shares/shares/rule_add.html'

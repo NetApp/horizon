@@ -28,6 +28,7 @@ from horizon import messages
 from horizon.utils.memoized import memoized  # noqa
 
 from openstack_dashboard.api import manila
+from openstack_dashboard.dashboards import utils
 #from openstack_dashboard.usage import quotas
 
 
@@ -46,6 +47,8 @@ class CreateForm(forms.SelfHandlingForm):
                                           widget=forms.Select(attrs={
                                               'class': 'switchable',
                                               'data-slug': 'source'}))
+    metadata = forms.CharField(widget=forms.Textarea,
+                               label=_("Metadata"), required=False)
     snapshot = forms.ChoiceField(
         label=_("Use snapshot as a source"),
         widget=forms.fields.SelectWidget(
@@ -155,7 +158,15 @@ class CreateForm(forms.SelfHandlingForm):
             #    raise ValidationError(error_message)
 
             metadata = {}
-
+            try:
+                set_dict, unset_list = utils.parse_str_meta(data['metadata'])
+                if unset_list:
+                    msg = _("Expected only pairs of key=value.")
+                    raise ValidationError(message=msg)
+                metadata = set_dict
+            except ValidationError as e:
+                self.api_error(e.messages[0])
+                return False
             share = manila.share_create(request,
                                         data['size'],
                                         data['name'],

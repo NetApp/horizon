@@ -213,6 +213,39 @@ class UpdateForm(forms.SelfHandlingForm):
                               redirect=redirect)
 
 
+class UpdateMetadataForm(forms.SelfHandlingForm):
+    metadata = forms.CharField(widget=forms.Textarea,
+                               label=_("Metadata"), required=False)
+
+    def __init__(self, *args, **kwargs):
+        super(UpdateMetadataForm, self).__init__(*args, **kwargs)
+        meta_str = ""
+        for k, v in self.initial["metadata"].iteritems():
+            meta_str += "%s=%s\r\n" % (k, v)
+        self.initial["metadata"] = meta_str
+
+    def handle(self, request, data):
+        share_id = self.initial['share_id']
+        try:
+            share = manila.share_get(self.request, share_id)
+            set_dict, unset_list = utils.parse_str_meta(data['metadata'])
+            if set_dict:
+                manila.share_set_metadata(request, share, set_dict)
+            if unset_list:
+                manila.share_delete_metadata(request, share, unset_list)
+            message = _('Updating share metadata "%s"') % share.name
+            messages.success(request, message)
+            return True
+        except ValidationError as e:
+            self.api_error(e.messages[0])
+            return False
+        except Exception:
+            redirect = reverse("horizon:project:shares:index")
+            exceptions.handle(request,
+                              _('Unable to update share metadata.'),
+                              redirect=redirect)
+
+
 class AddRule(forms.SelfHandlingForm):
     type = forms.ChoiceField(label=_("Type"),
                              required=True,

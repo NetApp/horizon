@@ -11,6 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
 
 from horizon import exceptions
@@ -46,6 +47,11 @@ class SharesTab(tabs.TableTab):
                 share.share_network = \
                     share_nets_names.get(share.share_network_id) or \
                     share.share_network_id
+                meta = []
+                for k, v in share.metadata.iteritems():
+                    meta.append("%s=%s" % (k, v))
+                meta_str = "<br/>".join(meta)
+                share.metadata = mark_safe(meta_str)
         except Exception:
             exceptions.handle(self.request,
                               _('Unable to retrieve share list.'))

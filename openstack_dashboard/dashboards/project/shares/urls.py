@@ -70,4 +70,7 @@ urlpatterns = patterns('openstack_dashboard.dashboards.project.shares.views',
     url(r'^(?P<share_id>[^/]+)/update/$',
         shares_views.UpdateView.as_view(),
         name='update'),
+    url(r'^(?P<share_id>[^/]+)/update_metadata/$',
+        shares_views.UpdateMetadataView.as_view(),
+        name='update_metadata'),
 )

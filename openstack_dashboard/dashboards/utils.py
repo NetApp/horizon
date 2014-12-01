@@ -55,3 +55,17 @@ def parse_str_meta(meta_s):
     if msg:
         raise ValidationError(message=msg)
     return set_dict, unset_list
+
+
+def metadata_to_str(metadata):
+    meta_visible_limit = 4
+    meta = []
+    meta_keys = metadata.keys()
+    meta_keys.sort()
+    meta_keys = meta_keys[:meta_visible_limit]
+    for k in meta_keys:
+        meta.append("%s=%s" % (k, metadata[k]))
+    meta_str = "<br/>".join(meta)
+    if len(metadata.keys()) > meta_visible_limit:
+        meta_str += '...'
+    return meta_str

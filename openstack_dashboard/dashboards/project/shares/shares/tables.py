@@ -27,6 +27,7 @@ from horizon import tables
 from openstack_dashboard.api import manila
 from openstack_dashboard.dashboards.project.shares.snapshots \
     import tables as snapshot_tables
+from openstack_dashboard.dashboards import utils
 from openstack_dashboard.usage import quotas
 
 
@@ -125,10 +126,7 @@ class UpdateRow(tables.Row):
             share.share_network = share_net.name or share_net.id
         else:
             share.share_network = None
-        meta = []
-        for k, v in share.metadata.iteritems():
-            meta.append("%s=%s" % (k, v))
-        meta_str = "<br/>".join(meta)
+        meta_str = utils.metadata_to_str(share.metadata)
         share.metadata = mark_safe(meta_str)
 
         return share
@@ -152,8 +150,7 @@ class SharesTableBase(tables.DataTable):
                                 verbose_name=_("Description"),
                                 truncate=40)
     metadata = tables.Column("metadata",
-                             verbose_name=_("Metadata"),
-                             truncate=60)
+                             verbose_name=_("Metadata"))
     size = tables.Column(get_size,
                          verbose_name=_("Size"),
                          attrs={'data-type': 'size'})

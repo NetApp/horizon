@@ -21,6 +21,7 @@ from openstack_dashboard.api import manila
 
 from openstack_dashboard.dashboards.project.shares.shares \
     import tables as share_tables
+from openstack_dashboard.dashboards import utils
 
 
 class SharesTab(tabs.TableTab):
@@ -47,10 +48,7 @@ class SharesTab(tabs.TableTab):
                 share.share_network = \
                     share_nets_names.get(share.share_network_id) or \
                     share.share_network_id
-                meta = []
-                for k, v in share.metadata.iteritems():
-                    meta.append("%s=%s" % (k, v))
-                meta_str = "<br/>".join(meta)
+                meta_str = utils.metadata_to_str(share.metadata)
                 share.metadata = mark_safe(meta_str)
         except Exception:
             exceptions.handle(self.request,

@@ -125,8 +125,7 @@ class UpdateShareNetworkWorkflow(workflows.Workflow):
                                         name=context['name'])
             sec_services = manila.security_service_list(request, search_opts={
                 'share_network_id': context['id']})
-            sec_services_old = {sec_service.id for sec_service in
-                                    sec_services}
+            sec_services_old = set([sec_service.id for sec_service in sec_services])
             sec_services_new = set(context['security_service'])
             for sec_service in sec_services_new - sec_services_old:
                 manila.share_network_security_service_add(request,

@@ -32,7 +32,7 @@ from openstack_dashboard.dashboards.admin.\
 from openstack_dashboard.dashboards.admin.\
     shares.tables import ShareServerTable
 from openstack_dashboard.dashboards.admin.\
-    shares.tables import VolumeTypesTable
+    shares.tables import ShareTypesTable
 from openstack_dashboard.dashboards.admin.shares import utils
 
 
@@ -83,26 +83,26 @@ class SharesTab(tabs.TableTab):
         return shares
 
 
-class VolumeTypesTab(tabs.TableTab):
-    table_classes = (VolumeTypesTable, )
-    name = _("Volume types")
-    slug = "volume_types_tab"
+class ShareTypesTab(tabs.TableTab):
+    table_classes = (ShareTypesTable, )
+    name = _("Share types")
+    slug = "share_types_tab"
     template_name = "horizon/common/_detail_table.html"
 
-    def get_volume_types_data(self):
+    def get_share_types_data(self):
         try:
-            volume_types = manila.volume_type_list(self.request)
+            share_types = manila.share_type_list(self.request)
         except Exception:
-            volume_types = []
+            share_types = []
             exceptions.handle(self.request,
-                              _("Unable to retrieve volume types"))
+                              _("Unable to retrieve share types"))
         # Convert dict with extra specs to friendly view
-        for vt in volume_types:
+        for st in share_types:
             es_str = ""
-            for k, v in vt.extra_specs.iteritems():
+            for k, v in st.extra_specs.iteritems():
                 es_str += "%s=%s\r\n<br />" % (k, v)
-            vt.extra_specs = mark_safe(es_str)
-        return volume_types
+            st.extra_specs = mark_safe(es_str)
+        return share_types
 
 
 class SecurityServiceTab(tabs.TableTab):
@@ -186,7 +186,7 @@ class ShareServerDetailTabs(tabs.TabGroup):
 class ShareTabs(tabs.TabGroup):
     slug = "share_tabs"
     tabs = (SharesTab, SnapshotsTab, ShareNetworkTab, SecurityServiceTab,
-            VolumeTypesTab, ShareServerTab)
+            ShareTypesTab, ShareServerTab)
     sticky = True
 
 

@@ -34,9 +34,9 @@
     <dd>{{ share.size }} {% trans "GB" %}</dd>
     <dt>{% trans "Protocol" %}</dt>
     <dd>{{ share.share_proto }}</dd>
-    {% if share.volume_type %}
-    <dt>{% trans "Volume type" %}</dt>
-    <dd>{{ share.volume_type }}</dd>
+    {% if share.share_type %}
+    <dt>{% trans "Share type" %}</dt>
+    <dd>{{ share.share_type }}</dd>
     {% endif %}
     <dt>{% trans "Created" %}</dt>
     <dd>{{ share.created_at|parse_date }}</dd>

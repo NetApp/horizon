@@ -45,42 +45,42 @@ class DetailView(share_views.DetailView):
     template_name = "admin/shares/detail.html"
 
 
-class CreateVolumeTypeView(forms.ModalFormView):
-    form_class = project_forms.CreateVolumeType
-    template_name = 'admin/shares/create_volume_type.html'
+class CreateShareTypeView(forms.ModalFormView):
+    form_class = project_forms.CreateShareType
+    template_name = 'admin/shares/create_share_type.html'
     success_url = 'horizon:admin:shares:index'
 
     def get_success_url(self):
         return reverse(self.success_url)
 
 
-class UpdateVolumeTypeView(forms.ModalFormView):
-    form_class = project_forms.UpdateVolumeType
-    template_name = "admin/shares/update_volume_type.html"
+class UpdateShareTypeView(forms.ModalFormView):
+    form_class = project_forms.UpdateShareType
+    template_name = "admin/shares/update_share_type.html"
     success_url = reverse_lazy("horizon:admin:shares:index")
 
     def get_object(self):
         if not hasattr(self, "_object"):
-            vt_id = self.kwargs["volume_type_id"]
+            st_id = self.kwargs["share_type_id"]
             try:
-                self._object = manila.volume_type_get(self.request, vt_id)
+                self._object = manila.share_type_get(self.request, st_id)
             except Exception:
-                msg = _("Unable to retrieve volume_type.")
+                msg = _("Unable to retrieve share_type.")
                 url = reverse("horizon:admin:shares:index")
                 exceptions.handle(self.request, msg, redirect=url)
         return self._object
 
     def get_context_data(self, **kwargs):
-        context = super(UpdateVolumeTypeView, self).get_context_data(**kwargs)
-        context["volume_type"] = self.get_object()
+        context = super(UpdateShareTypeView, self).get_context_data(**kwargs)
+        context["share_type"] = self.get_object()
         return context
 
     def get_initial(self):
-        volume_type = self.get_object()
+        share_type = self.get_object()
         return {
-            "id": self.kwargs["volume_type_id"],
-            "name": volume_type.name,
-            "extra_specs": volume_type.extra_specs,
+            "id": self.kwargs["share_type_id"],
+            "name": share_type.name,
+            "extra_specs": share_type.extra_specs,
         }
 
 class ShareServDetail(tabs.TabView):

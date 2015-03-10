@@ -6,7 +6,7 @@
 {% block form_action %}{% url 'horizon:project:shares:update_share_network' share_network.id %}{% endblock %}
 
 {% block modal_id %}update_share_network_modal{% endblock %}
-{% block modal-header %}{% trans "Edit Volume" %}{% endblock %}
+{% block modal-header %}{% trans "Edit Share network" %}{% endblock %}
 
 {% block modal-body %}
   <div class="left">
@@ -16,11 +16,11 @@
   </div>
   <div class="right">
     <h3>{% trans "Description" %}:</h3>
-    <p>{% trans "From here you can modify name and description of a volume." %}</p>
+    <p>{% trans "From here you can modify name and description of a share network." %}</p>
   </div>
 {% endblock %}
 
 {% block modal-footer %}
-  <input class="btn btn-primary pull-right" type="submit" value="{% trans "Edit Volume" %}" />
+  <input class="btn btn-primary pull-right" type="submit" value="{% trans "Edit Share Network" %}" />
   <a href="{% url 'horizon:project:shares:index' %}" class="btn secondary cancel close">{% trans "Cancel" %}</a>
 {% endblock %}

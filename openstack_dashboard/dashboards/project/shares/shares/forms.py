@@ -21,6 +21,7 @@ from django.core.urlresolvers import reverse
 from django.forms import ValidationError  # noqa
 from django.template.defaultfilters import filesizeformat  # noqa
 from django.utils.translation import ugettext_lazy as _
+import six
 
 from horizon import exceptions
 from horizon import forms
@@ -34,21 +35,22 @@ from openstack_dashboard.dashboards import utils
 
 class CreateForm(forms.SelfHandlingForm):
     name = forms.CharField(max_length="255", label=_("Share Name"))
-    description = forms.CharField(widget=forms.Textarea,
-                                  label=_("Description"), required=False)
-    type = forms.ChoiceField(label=_("Type"),
-                             required=False)
+    description = forms.CharField(
+        label=_("Description"), required=False,
+        widget=forms.Textarea(attrs={'rows': 3}))
+    share_proto = forms.ChoiceField(label=_("Share Protocol"), required=True)
     size = forms.IntegerField(min_value=1, label=_("Size (GB)"))
-    share_network = forms.ChoiceField(label=_("Share Network"),
-                                      required=False)
-    volume_type = forms.ChoiceField(label=_("Volume Type"), required=False)
-    share_source_type = forms.ChoiceField(label=_("Share Source"),
-                                          required=False,
-                                          widget=forms.Select(attrs={
-                                              'class': 'switchable',
-                                              'data-slug': 'source'}))
-    metadata = forms.CharField(widget=forms.Textarea,
-                               label=_("Metadata"), required=False)
+    share_type = forms.ChoiceField(
+        label=_("Share Type"), required=True,
+        widget=forms.Select(
+            attrs={'class': 'switchable','data-slug': 'sharetype'}))
+    share_source_type = forms.ChoiceField(
+        label=_("Share Source"), required=False,
+        widget=forms.Select(
+            attrs={'class': 'switchable', 'data-slug': 'source'}))
+    metadata = forms.CharField(
+        label=_("Metadata"), required=False,
+        widget=forms.Textarea(attrs={'rows': 4}))
     snapshot = forms.ChoiceField(
         label=_("Use snapshot as a source"),
         widget=forms.fields.SelectWidget(
@@ -61,29 +63,23 @@ class CreateForm(forms.SelfHandlingForm):
 
     def __init__(self, request, *args, **kwargs):
         super(CreateForm, self).__init__(request, *args, **kwargs)
-        share_types = ('NFS', 'CIFS')
+        share_protos = ('NFS', 'CIFS', 'GlusterFS', 'HDFS', )
         share_networks = manila.share_network_list(request)
-        volume_types = manila.volume_type_list(request)
-        self.fields['volume_type'].choices = [("", "")] + \
-            [(vt.name, vt.name) for vt in volume_types]
-        self.fields['type'].choices = [(type, type)
-                                       for type in share_types]
-        self.fields['share_network'].choices = \
-            [("", "")] + [(net.id, net.name or net.id) for net in
-                          share_networks]
+        share_types = manila.share_type_list(request)
+        self.fields['share_type'].choices = (
+            [("", "")] + [(st.name, st.name) for st in share_types])
+        self.fields['share_proto'].choices = [(sp, sp) for sp in share_protos]
         if "snapshot_id" in request.GET:
             try:
                 snapshot = self.get_snapshot(request,
                                              request.GET["snapshot_id"])
                 self.fields['name'].initial = snapshot.name
                 self.fields['size'].initial = snapshot.size
-                self.fields['snapshot'].choices = ((snapshot.id,
-                                                    snapshot),)
+                self.fields['snapshot'].choices = ((snapshot.id, snapshot),)
                 try:
                     # Set the share type from the original share
-                    orig_share = manila.share_get(request,
-                                                    snapshot.share_id)
-                    self.fields['type'].initial = orig_share.share_type
+                    orig_share = manila.share_get(request, snapshot.share_id)
+                    self.fields['share_type'].initial = orig_share.share_type
                 except Exception:
                     pass
                 self.fields['size'].help_text = _('Share size must be equal '
@@ -119,6 +115,43 @@ class CreateForm(forms.SelfHandlingForm):
                 self.fields['share_source_type'].choices = choices
             else:
                 del self.fields['share_source_type']
+
+        self.sn_field_name_prefix = 'share-network-choices-'
+        for st in share_types:
+            extra_specs = st.get_keys()
+            dhss = extra_specs.get('driver_handles_share_servers')
+            # NOTE(vponomaryov): Set and tie share-network field only for
+            # share types with enabled handling of share servers.
+            if (isinstance(dhss, six.string_types) and
+                    dhss.lower() in ['true', '1']):
+                sn_choices = (
+                    [('', '')] +
+                    [(sn.id, sn.name or sn.id) for sn in share_networks])
+                sn_field_name = self.sn_field_name_prefix + st.name
+                sn_field = forms.ChoiceField(
+                    label=_("Share Network"), required=True, choices=sn_choices,
+                    widget=forms.Select(attrs={
+                        'class': 'switched',
+                        'data-switch-on': 'sharetype',
+                        'data-sharetype-%s' % st.name: _("Share Network"),
+                    }))
+                self.fields.insert(5, sn_field_name, sn_field)
+
+    def clean(self):
+        cleaned_data = super(CreateForm, self).clean()
+        errors = [k for k in self.errors.viewkeys()]
+
+        # NOTE(vponomaryov): skip errors for share-network fields that are not
+        # related to chosen share type.
+        for k in errors:
+            st_name = k.split(self.sn_field_name_prefix)[-1]
+            chosen_st = cleaned_data.get('share_type')
+            if (k.startswith(self.sn_field_name_prefix) and
+                    st_name != chosen_st):
+                cleaned_data[k] = 'Not set'
+                self.errors.pop(k, None)
+
+        return cleaned_data
 
     def handle(self, request, data):
         try:
@@ -168,13 +201,13 @@ class CreateForm(forms.SelfHandlingForm):
                 self.api_error(e.messages[0])
                 return False
             share = manila.share_create(request,
-                                        data['size'],
-                                        data['name'],
-                                        data['description'],
-                                        data['type'],
+                                        size=data['size'],
+                                        name=data['name'],
+                                        description=data['description'],
+                                        proto=data['share_proto'],
                                         share_network=share_network,
                                         snapshot_id=snapshot_id,
-                                        volume_type=data['volume_type'],
+                                        share_type=data['share_type'],
                                         metadata=metadata)
             message = _('Creating share "%s"') % data['name']
             messages.success(request, message)

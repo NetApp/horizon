@@ -32,26 +32,26 @@ def get_size(share):
     return _("%sGB") % share.size
 
 
-class CreateVolumeType(tables.LinkAction):
+class CreateShareType(tables.LinkAction):
     name = "create"
-    verbose_name = _("Create Volume Type")
+    verbose_name = _("Create Share Type")
     url = "horizon:admin:shares:create_type"
     classes = ("ajax-modal", "btn-create")
     policy_rules = (("share", "share_extension:types_manage"),)
 
 
-class DeleteVolumeType(tables.DeleteAction):
-    data_type_singular = _("Volume Type")
-    data_type_plural = _("Volume Types")
+class DeleteShareType(tables.DeleteAction):
+    data_type_singular = _("Share Type")
+    data_type_plural = _("Share Types")
     policy_rules = (("share", "share_extension:types_manage"),)
 
     def delete(self, request, obj_id):
-        manila.volume_type_delete(request, obj_id)
+        manila.share_type_delete(request, obj_id)
 
 
-class UpdateVolumeType(tables.LinkAction):
-    name = "update volume type"
-    verbose_name = _("Update Volume Type")
+class UpdateShareType(tables.LinkAction):
+    name = "update share type"
+    verbose_name = _("Update Share Type")
     url = "horizon:admin:shares:update_type"
     classes = ("ajax-modal", "btn-create")
     policy_rules = (("share", "share_extension:types_manage"),)
@@ -63,30 +63,30 @@ class UpdateVolumeType(tables.LinkAction):
         return {"project_id": project_id}
 
 
-class VolumeTypesFilterAction(tables.FilterAction):
+class ShareTypesFilterAction(tables.FilterAction):
 
-    def filter(self, table, volume_types, filter_string):
+    def filter(self, table, share_types, filter_string):
         """Naive case-insensitive search."""
         q = filter_string.lower()
-        return [vt for vt in volume_types if q in vt.name.lower()]
+        return [st for st in share_types if q in st.name.lower()]
 
 
-class VolumeTypesTable(tables.DataTable):
+class ShareTypesTable(tables.DataTable):
     name = tables.Column("name", verbose_name=_("Name"))
     extra_specs = tables.Column("extra_specs", verbose_name=_("Extra specs"), )
 
-    def get_object_display(self, vol_type):
-        return vol_type.name
+    def get_object_display(self, share_type):
+        return share_type.name
 
-    def get_object_id(self, vol_type):
-        return str(vol_type.id)
+    def get_object_id(self, share_type):
+        return str(share_type.id)
 
     class Meta:
-        name = "volume_types"
-        verbose_name = _("Volume Types")
-        table_actions = (CreateVolumeType, DeleteVolumeType,
-                         VolumeTypesFilterAction, )
-        row_actions = (UpdateVolumeType, DeleteVolumeType, )
+        name = "share_types"
+        verbose_name = _("Share Types")
+        table_actions = (CreateShareType, DeleteShareType,
+                         ShareTypesFilterAction, )
+        row_actions = (UpdateShareType, DeleteShareType, )
 
 
 class SharesFilterAction(tables.FilterAction):
@@ -123,7 +123,7 @@ class SharesTable(shares_tables.SharesTable):
         row_class = shares_tables.UpdateRow
         table_actions = (shares_tables.DeleteShare, SharesFilterAction)
         row_actions = (shares_tables.DeleteShare,)
-        columns = ('tenant', 'host', 'name', 'size', 'status', 'volume_type',
+        columns = ('tenant', 'host', 'name', 'size', 'status', 'share_type',
                    'protocol', 'share_server')
 
 

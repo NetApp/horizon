@@ -26,31 +26,43 @@ from openstack_dashboard.api import neutron
 from openstack_dashboard.dashboards import utils
 
 
-VT_EXTRA_SPECS_FORM_ATTRS = {
+ST_EXTRA_SPECS_FORM_ATTRS = {
     "rows": 5,
     "cols": 40,
     "style": "height: 135px; width: 100%;",  # in case 'rows' not picked up
 }
 
 
-class CreateVolumeType(forms.SelfHandlingForm):
+class CreateShareType(forms.SelfHandlingForm):
     name = forms.CharField(max_length="255", label=_("Name"))
+    spec_driver_handles_share_servers = forms.CharField(
+        max_length="5", label=_("Driver handles share servers"))
     extra_specs = forms.CharField(required=False, label=_("Extra specs"),
-        widget=forms.widgets.Textarea(attrs=VT_EXTRA_SPECS_FORM_ATTRS))
+        widget=forms.widgets.Textarea(attrs=ST_EXTRA_SPECS_FORM_ATTRS))
 
     def handle(self, request, data):
         try:
+            spec_dhss = data['spec_driver_handles_share_servers'].lower()
+            allowed_dhss_values = ['true', 'false']
+            if spec_dhss not in allowed_dhss_values:
+                msg = _("Improper value set to required extra spec "
+                        "'spec_driver_handles_share_servers'. "
+                        "Allowed values are %s. "
+                        "Case insensitive.") % allowed_dhss_values
+                raise ValidationError(message=msg)
+
             set_dict, unset_list = utils.parse_str_meta(data['extra_specs'])
             if unset_list:
                 msg = _("Expected only pairs of key=value.")
                 raise ValidationError(message=msg)
-            volume_type = manila.volume_type_create(request, data["name"])
-            if set_dict:
-                manila.volume_type_set_extra_specs(request,
-                                                   volume_type.id,
-                                                   set_dict)
 
-            msg = _("Successfully created volume type: %s") % volume_type.name
+            share_type = manila.share_type_create(
+                request, data["name"], spec_dhss)
+            if set_dict:
+                manila.share_type_set_extra_specs(
+                    request, share_type.id, set_dict)
+
+            msg = _("Successfully created share type: %s") % share_type.name
             messages.success(request, msg)
             return True
         except ValidationError as e:
@@ -58,14 +70,14 @@ class CreateVolumeType(forms.SelfHandlingForm):
             self.api_error(e.messages[0])
             return False
         except Exception:
-            exceptions.handle(request, _('Unable to create volume type.'))
+            exceptions.handle(request, _('Unable to create share type.'))
             return False
 
 
-class UpdateVolumeType(forms.SelfHandlingForm):
+class UpdateShareType(forms.SelfHandlingForm):
 
     def __init__(self, *args, **kwargs):
-        super(UpdateVolumeType, self).__init__(*args, **kwargs)
+        super(UpdateShareType, self).__init__(*args, **kwargs)
         # NOTE(vponomaryov): parse existing extra specs
         #                    to str view for textarea html element
         es_str = ""
@@ -74,25 +86,23 @@ class UpdateVolumeType(forms.SelfHandlingForm):
         self.initial["extra_specs"] = es_str
 
     extra_specs = forms.CharField(required=False, label=_("Extra specs"),
-        widget=forms.widgets.Textarea(attrs=VT_EXTRA_SPECS_FORM_ATTRS))
+        widget=forms.widgets.Textarea(attrs=ST_EXTRA_SPECS_FORM_ATTRS))
 
     def handle(self, request, data):
         try:
             set_dict, unset_list = utils.parse_str_meta(data['extra_specs'])
             if set_dict:
-                manila.volume_type_set_extra_specs(request,
-                                                   self.initial["id"],
-                                                   set_dict)
+                manila.share_type_set_extra_specs(
+                    request, self.initial["id"], set_dict)
             if unset_list:
-                get = manila.volume_type_get_extra_specs(request,
-                                                         self.initial["id"])
+                get = manila.share_type_get_extra_specs(
+                    request, self.initial["id"])
                 for unset_key in unset_list:
                     # NOTE(vponomaryov): skip keys that are already unset
                     if unset_key in get.keys():
-                        manila.volume_type_unset_extra_specs(request,
-                                                             self.initial["id"],
-                                                             unset_key)
-            msg = _("Successfully updated extra specs for volume type '%s'.")
+                        manila.share_type_unset_extra_specs(
+                            request, self.initial["id"], unset_key)
+            msg = _("Successfully updated extra specs for share type '%s'.")
             msg = msg % self.initial['name']
             messages.success(request, msg)
             return True
@@ -101,7 +111,7 @@ class UpdateVolumeType(forms.SelfHandlingForm):
             self.api_error(e.messages[0])
             return False
         except Exception:
-            msg = _("Unable to update extra_specs for volume type.")
+            msg = _("Unable to update extra_specs for share type.")
             exceptions.handle(request, msg)
             return False
 

@@ -28,7 +28,7 @@ share = shares.Share(shares.ShareManager(None),
                       'status': 'available',
                       'size': 40,
                       'name': 'Share name',
-                      'description': 'Volume description',
+                      'description': 'Share description',
                       'share_proto': 'NFS',
                       'created_at': '2014-01-27 10:30:00',
                       'share_network_id':
@@ -43,7 +43,7 @@ nameless_share = shares.Share(shares.ShareManager(None),
                                'share_proto': 'NFS',
                                'export_location': "/dev/hda",
                                'created_at': '2010-11-21 18:34:25',
-                               'volume_type': 'vol_type_1',
+                               'share_type': 'vol_type_1',
                                'share_network_id':
                                    '7f3d1c33-8d00-4511-29df-a2def31f3b5d'})
 
@@ -51,11 +51,11 @@ other_share = shares.Share(shares.ShareManager(None),
                            {'id': "21023e92-8008-1234-8059-7f2293ff3889",
                             'status': 'in-use',
                             'size': 10,
-                            'name': u'my_volume',
+                            'name': u'my_share',
                             'description': '',
                             'share_proto': 'NFS',
                             'created_at': '2013-04-01 10:30:00',
-                            'volume_type': None,
+                            'share_type': None,
                             'share_network_id':
                                 '7f3d1c33-8d00-4511-29df-a2def31f3b5d'})
 
@@ -71,7 +71,7 @@ snapshot = share_snapshots.ShareSnapshot(
     share_snapshots.ShareSnapshotManager(None),
     {'id': '5f3d1c33-7d00-4511-99df-a2def31f3b5d',
      'name': 'test snapshot',
-     'description': 'volume snapshot',
+     'description': 'share snapshot',
      'size': 40,
      'status': 'available',
      'share_id': '11023e92-8008-4c8b-8059-7f2293ff3887'})

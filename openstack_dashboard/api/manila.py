@@ -54,9 +54,9 @@ def manilaclient(request):
     LOG.debug('manilaclient connection created using token "%s" and url "%s"' %
               (request.user.token.id, manila_url))
     c = manila_client.Client(request.user.username,
-                             request.user.token.id,
+                             input_auth_token=request.user.token.id,
                              project_id=request.user.tenant_id,
-                             auth_url=manila_url,
+                             service_catalog_url=manila_url,
                              insecure=insecure,
                              cacert=cacert,
                              http_log_debug=settings.DEBUG)
@@ -75,11 +75,11 @@ def share_get(request, share_id):
 
 
 def share_create(request, size, name, description, proto, snapshot_id=None,
-                 metadata=None, share_network=None, volume_type=None):
+                 metadata=None, share_network=None, share_type=None):
     return manilaclient(request).shares.create(
         proto, size, name=name, description=description,
         share_network=share_network, snapshot_id=snapshot_id,
-        metadata=metadata, volume_type=volume_type,
+        metadata=metadata, share_type=share_type,
     )
 
 
@@ -236,34 +236,36 @@ def default_quota_update(request, **kwargs):
     manilaclient(request).quota_classes.update(DEFAULT_QUOTA_NAME, **kwargs)
 
 
-def volume_type_list(request):
-    return manilaclient(request).volume_types.list()
+def share_type_list(request):
+    return manilaclient(request).share_types.list()
 
 
-def volume_type_get(request, volume_type_id):
-    return manilaclient(request).volume_types.get(volume_type_id)
+def share_type_get(request, share_type_id):
+    return manilaclient(request).share_types.get(share_type_id)
 
 
-def volume_type_create(request, name):
-    return manilaclient(request).volume_types.create(name)
+def share_type_create(request, name, spec_driver_handles_share_servers):
+    return manilaclient(request).share_types.create(
+        name=name,
+        spec_driver_handles_share_servers=spec_driver_handles_share_servers)
 
 
-def volume_type_delete(request, volume_type_id):
-    return manilaclient(request).volume_types.delete(volume_type_id)
+def share_type_delete(request, share_type_id):
+    return manilaclient(request).share_types.delete(share_type_id)
 
 
-def volume_type_get_extra_specs(request, volume_type_id):
-    return manilaclient(request).volume_types.get(volume_type_id).get_keys()
+def share_type_get_extra_specs(request, share_type_id):
+    return manilaclient(request).share_types.get(share_type_id).get_keys()
 
 
-def volume_type_set_extra_specs(request, volume_type_id, extra_specs):
-    return manilaclient(request).volume_types.get(
-        volume_type_id).set_keys(extra_specs)
+def share_type_set_extra_specs(request, share_type_id, extra_specs):
+    return manilaclient(request).share_types.get(
+        share_type_id).set_keys(extra_specs)
 
 
-def volume_type_unset_extra_specs(request, volume_type_id, key):
-    return manilaclient(request).volume_types.get(
-        volume_type_id).unset_keys(key)
+def share_type_unset_extra_specs(request, share_type_id, key):
+    return manilaclient(request).share_types.get(
+        share_type_id).unset_keys(key)
 
 
 def tenant_absolute_limits(request):

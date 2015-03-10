@@ -1,4 +1,3 @@
-#
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -32,8 +31,6 @@ class SharesTab(tabs.TableTab):
 
     def _set_id_if_nameless(self, shares):
         for share in shares:
-            # It is possible to create a volume with no name through the
-            # EC2 API, use the ID in those cases.
             if not share.name:
                 share.name = share.id
 

@@ -38,6 +38,10 @@
     <dt>{% trans "Share type" %}</dt>
     <dd>{{ share.share_type }}</dd>
     {% endif %}
+    {% if share.share_network_id %}
+    <dt>{% trans "Share network" %}</dt>
+    <dd>{{ share.share_network_id }}</dd>
+    {% endif %}
     <dt>{% trans "Created" %}</dt>
     <dd>{{ share.created_at|parse_date }}</dd>
   </dl>

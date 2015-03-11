@@ -151,6 +151,9 @@ class CreateForm(forms.SelfHandlingForm):
                 cleaned_data[k] = 'Not set'
                 self.errors.pop(k, None)
 
+        cleaned_data['share_network'] = cleaned_data.get(
+            self.sn_field_name_prefix + cleaned_data['share_type'])
+
         return cleaned_data
 
     def handle(self, request, data):

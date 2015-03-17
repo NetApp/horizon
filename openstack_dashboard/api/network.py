@@ -39,6 +39,21 @@ class NetworkClient(object):
         else:
             self.secgroups = nova.SecurityGroupManager(request)
 
+        if neutron_enabled:
+            self.network_list = neutron.network_list
+            self.network_get = neutron.network_get
+        else:
+            self.network_list = nova.network_list
+            self.network_get = nova.network_get
+
+
+def network_list(request):
+    return NetworkClient(request).network_list(request)
+
+
+def network_get(request, net_id):
+    return NetworkClient(request).network_get(request, net_id)
+
 
 def floating_ip_pools_list(request):
     return NetworkClient(request).floating_ips.list_pools()

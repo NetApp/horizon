@@ -18,7 +18,9 @@ from horizon import exceptions
 from horizon import forms
 from horizon import tabs
 from horizon import workflows
+from openstack_dashboard.api import base
 from openstack_dashboard.api import manila
+from openstack_dashboard.api import network
 from openstack_dashboard.api import neutron
 from openstack_dashboard.dashboards.project.shares.share_networks import forms\
     as share_net_forms
@@ -67,16 +69,24 @@ class Detail(tabs.TabView):
         try:
             share_net_id = self.kwargs['share_network_id']
             share_net = manila.share_network_get(self.request, share_net_id)
-            try:
-                share_net.neutron_net = neutron.network_get(
-                    self.request, share_net.neutron_net_id).name_or_id
-            except neutron.neutron_client.exceptions.NeutronClientException:
-                share_net.neutron_net = _("Unknown")
-            try:
-                share_net.neutron_subnet = neutron.subnet_get(
-                    self.request, share_net.neutron_subnet_id).name_or_id
-            except neutron.neutron_client.exceptions.NeutronClientException:
-                share_net.neutron_subnet = _("Unknown")
+            if base.is_service_enabled(self.request, 'network'):
+                try:
+                    share_net.neutron_net = neutron.network_get(
+                        self.request, share_net.neutron_net_id).name_or_id
+                except neutron.neutron_client.exceptions.NeutronClientException:
+                    share_net.neutron_net = _("Unknown")
+                try:
+                    share_net.neutron_subnet = neutron.subnet_get(
+                        self.request, share_net.neutron_subnet_id).name_or_id
+                except neutron.neutron_client.exceptions.NeutronClientException:
+                    share_net.neutron_subnet = _("Unknown")
+            else:
+                try:
+                    share_net.nova_net = network.network_get(
+                        self.request, share_net.nova_net_id).name_or_id
+                except Exception:
+                    share_net.nova_net = _("Unknown")
+
             share_net.sec_services = \
                 manila.share_network_security_service_list(self.request,
                                                            share_net_id)

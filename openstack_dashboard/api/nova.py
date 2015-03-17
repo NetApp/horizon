@@ -515,6 +515,20 @@ def flavor_extra_set(request, flavor_id, metadata):
     return flavor.set_keys(metadata)
 
 
+def network_list(request):
+    # Created for manila project purposes
+    nets = novaclient(request).networks.list()
+    for net in nets:
+        net.name_or_id = net.to_dict().get('label', net.to_dict().get('id'))
+    return nets
+
+
+def network_get(request, nova_net_id):
+    net = novaclient(request).networks.get(nova_net_id)
+    net.name_or_id = net.to_dict().get('label', net.to_dict().get('id'))
+    return net
+
+
 def snapshot_create(request, instance_id, name):
     return novaclient(request).servers.create_image(instance_id, name)
 

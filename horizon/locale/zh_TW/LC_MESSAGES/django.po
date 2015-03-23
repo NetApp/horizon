@@ -3,13 +3,15 @@
 # This file is distributed under the same license as the PACKAGE package.
 # 
 # Translators:
+# Chen, Shang-Pin <dreamerwolf.tw@gmail.com>, 2015
+# Xiao Xi LIU <liuxx@cn.ibm.com>, 2014
 msgid ""
 msgstr ""
 "Project-Id-Version: Horizon\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2014-10-02 13:57-0500\n"
-"PO-Revision-Date: 2014-10-02 21:40+0000\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"POT-Creation-Date: 2015-03-20 00:51-0500\n"
+"PO-Revision-Date: 2015-03-19 19:24+0000\n"
+"Last-Translator: Zhang Xiaowei <zero00072@gmail.com>\n"
 "Language-Team: Chinese (Taiwan) (http://www.transifex.com/projects/p/horizon/language/zh_TW/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -17,7 +19,7 @@ msgstr ""
 "Language: zh_TW\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: base.py:454
+#: base.py:475
 msgid "Other"
 msgstr "其他"
 
@@ -35,16 +37,16 @@ msgstr "您沒有足夠的權限存取 %s"
 msgid "A %(resource)s with the name \"%(name)s\" already exists."
 msgstr "一個名為「%(name)s」的 %(resource)s 已經存在。"
 
-#: exceptions.py:287
+#: exceptions.py:235
 #, python-format
 msgid "Unauthorized: %s"
 msgstr "未授權：%s"
 
-#: exceptions.py:290
+#: exceptions.py:238
 msgid "Unauthorized. Please try logging in again."
 msgstr "未授權。請試著重新登入。"
 
-#: middleware.py:97
+#: middleware.py:103
 msgid "Session timed out."
 msgstr "連線階段過期。"
 
@@ -73,93 +75,101 @@ msgstr "無效的 IP 位址版本"
 msgid "Invalid subnet mask"
 msgstr "無效的子網路遮罩"
 
-#: forms/views.py:81 templates/horizon/common/_usage_summary.html:16
+#: forms/views.py:132 templates/horizon/common/_usage_summary.html:16
 msgid "Submit"
 msgstr "提交"
 
-#: forms/views.py:82
-#: templates/horizon/common/_modal_form_update_metadata.html:239
+#: forms/views.py:133
+#: templates/horizon/common/_modal_form_update_metadata.html:27
 #: templates/horizon/common/_workflow.html:49
 msgid "Cancel"
 msgstr "取消"
 
 #: tables/actions.py:460
-#: templates/horizon/common/_data_table_table_actions.html:16
-#: templates/horizon/common/_data_table_table_actions.html:26
-#: templates/horizon/common/_workflow_step_update_members.html:12
-#: templates/horizon/common/_workflow_step_update_members.html:21
+#: templates/horizon/common/_data_table_table_actions.html:21
+#: templates/horizon/common/_data_table_table_actions.html:33
+#: templates/horizon/common/_workflow_step_update_members.html:14
+#: templates/horizon/common/_workflow_step_update_members.html:23
 msgid "Filter"
 msgstr "篩選"
 
-#: tables/actions.py:756
+#: tables/actions.py:645
+msgid "This action cannot be undone."
+msgstr "這個動作將無法回復。"
+
+#: tables/actions.py:767
 #, python-format
 msgctxt "past"
 msgid "%(action)s %(data_type)s"
 msgstr "%(action)s %(data_type)s"
 
-#: tables/actions.py:758
+#: tables/actions.py:769
 #, python-format
 msgctxt "present"
 msgid "%(action)s %(data_type)s"
 msgstr "%(action)s %(data_type)s"
 
-#: tables/actions.py:786 tables/base.py:1537
-msgid "N/A"
-msgstr "N/A"
-
-#: tables/actions.py:815
+#: tables/actions.py:832
 #, python-format
 msgid "You are not allowed to %(action)s: %(objs)s"
 msgstr "不允許您%(action)s：%(objs)s"
 
-#: tables/actions.py:822
+#: tables/actions.py:839
 #, python-format
 msgid "Unable to %(action)s: %(objs)s"
 msgstr "無法%(action)s：%(objs)s"
 
-#: tables/actions.py:828
+#: tables/actions.py:845
 #, python-format
 msgid "%(action)s: %(objs)s"
 msgstr "%(action)s：%(objs)s"
 
-#: tables/actions.py:898
+#: tables/actions.py:915
 msgid "Delete"
 msgstr "刪除"
 
-#: tables/actions.py:900
+#: tables/actions.py:917
 msgid "Deleted"
 msgstr "已刪除"
 
-#: tables/actions.py:931
+#: tables/actions.py:948
 msgid "Update"
 msgstr "更新"
 
-#: tables/actions.py:932
+#: tables/actions.py:949
 msgid "Updated"
 msgstr "已更新"
 
-#: tables/base.py:355
+#: tables/base.py:305
+msgid "-"
+msgstr "-"
+
+#: tables/base.py:361
 #, python-format
 msgid "The attribute %(attr)s doesn't exist on %(obj)s."
 msgstr "%(obj)s 不存在 %(attr)s 屬性。"
 
-#: tables/base.py:967
+#: tables/base.py:990
 msgid "No items to display."
 msgstr "沒有項目可以列出。"
 
-#: tables/base.py:1074
-#: templates/horizon/common/_data_table_table_actions.html:40
+#: tables/base.py:1099
+#: templates/horizon/common/_data_table_table_actions.html:47
 msgid "Actions"
 msgstr "動作"
 
-#: tables/base.py:1302
+#: tables/base.py:1329
 #, python-format
 msgid "No match returned for the id \"%s\"."
 msgstr "沒有符合識別號「%s」的結果。"
 
-#: tables/base.py:1453
+#: tables/base.py:1486
 msgid "Please select a row before taking that action."
 msgstr "執行動作前請選擇一個欄位。"
+
+#: tables/base.py:1570
+msgid "N/A"
+msgstr "N/A"
 
 #: templates/_header.html:5
 #, python-format
@@ -173,10 +183,6 @@ msgstr "幫助"
 #: templates/_header.html:9
 msgid "Sign Out"
 msgstr "登出"
-
-#: templates/splash.html:8 templates/auth/login.html:4
-msgid "Login"
-msgstr "登入"
 
 #: templates/auth/_login.html:5
 msgid "Log In"
@@ -197,6 +203,10 @@ msgstr "以不同的使用者身份登入，或者回到<a href=\"%(home_url)s\"
 msgid "Sign In"
 msgstr "登入"
 
+#: templates/auth/login.html:4
+msgid "Login"
+msgstr "登入"
+
 #: templates/horizon/_messages.html:7
 msgid "Info: "
 msgstr "資訊："
@@ -213,31 +223,41 @@ msgstr "成功："
 msgid "Error: "
 msgstr "錯誤："
 
-#: templates/horizon/common/_data_table.html:54
+#: templates/horizon/common/_data_table.html:63
 msgid "Summary"
 msgstr "摘要"
 
-#: templates/horizon/common/_data_table.html:63
+#: templates/horizon/common/_data_table.html:72
 #, python-format
 msgid "Displaying %(counter)s item"
 msgid_plural "Displaying %(counter)s items"
-msgstr[0] ""
+msgstr[0] "正在顯示 %(counter)s 項"
 
-#: templates/horizon/common/_data_table.html:68
+#: templates/horizon/common/_data_table.html:77
 msgid "&laquo;&nbsp;Prev"
 msgstr "&laquo;&nbsp;上一頁"
 
-#: templates/horizon/common/_data_table.html:71
+#: templates/horizon/common/_data_table.html:80
 msgid "Next&nbsp;&raquo;"
 msgstr "下一頁&nbsp;&raquo;"
 
-#: templates/horizon/common/_data_table_table_actions.html:38
+#: templates/horizon/common/_data_table_table_actions.html:45
 msgid "More Actions"
 msgstr "更多動作"
+
+#: templates/horizon/common/_domain_page_header.html:6
+#, python-format
+msgid "%(context_name)s:"
+msgstr "%(context_name)s："
 
 #: templates/horizon/common/_formset_table.html:35
 msgid "Add a row"
 msgstr "加入一列"
+
+#: templates/horizon/common/_formset_table_row.html:15
+#, python-format
+msgid "%(name)s: %(error)s"
+msgstr "%(name)s: %(error)s"
 
 #: templates/horizon/common/_limit_summary.html:4
 msgid "Limit Summary"
@@ -250,7 +270,6 @@ msgstr "執行實例"
 #: templates/horizon/common/_limit_summary.html:8
 #: templates/horizon/common/_limit_summary.html:15
 #: templates/horizon/common/_limit_summary.html:22
-#: templates/horizon/common/_limit_summary.html:29
 #: templates/horizon/common/_limit_summary.html:36
 #: templates/horizon/common/_limit_summary.html:43
 #: templates/horizon/common/_limit_summary.html:50
@@ -270,6 +289,11 @@ msgstr "隨機存取記憶體"
 msgid "Floating IPs"
 msgstr "浮動 IP"
 
+#: templates/horizon/common/_limit_summary.html:29
+#, python-format
+msgid "Allocated <span> %(used)s </span> of <span> %(available)s </span>"
+msgstr "已配置 <span> %(available)s </span> 中的 <span> %(used)s </span> "
+
 #: templates/horizon/common/_limit_summary.html:35
 msgid "Security Groups"
 msgstr "安全性群組"
@@ -282,48 +306,7 @@ msgstr "儲存空間"
 msgid "Volume Storage"
 msgstr "儲存空間"
 
-#: templates/horizon/common/_modal_form_update_metadata.html:12
-msgid ""
-"\n"
-"        You can specify metadata by adding items from the left column to\n"
-"        the right column. You may select the metadata added to glance\n"
-"        dictionary or you can use the \"Other\" option using a key of\n"
-"        your choice.\n"
-"      "
-msgstr "\n        您可以從左欄加入項目到右欄來指定描述資料。\n        您可以將這個描述資料加入到 Glance 字典\n        或者也可以使用「其他」選項來使用您自選的鍵。\n        "
-
 #: templates/horizon/common/_modal_form_update_metadata.html:26
-msgid "Available Metadata"
-msgstr "可用的描述資料"
-
-#: templates/horizon/common/_modal_form_update_metadata.html:56
-msgid "Duplicate keys are not allowed"
-msgstr "不允許重覆的鍵"
-
-#: templates/horizon/common/_modal_form_update_metadata.html:59
-msgid "Invalid key name"
-msgstr "無效的鍵名"
-
-#: templates/horizon/common/_modal_form_update_metadata.html:88
-#: templates/horizon/common/_modal_form_update_metadata.html:200
-msgid "No existing metadata"
-msgstr "沒有存在的描述資料"
-
-#: templates/horizon/common/_modal_form_update_metadata.html:99
-msgid "Existing Metadata"
-msgstr "存在的描述資料"
-
-#: templates/horizon/common/_modal_form_update_metadata.html:216
-msgid ""
-"\n"
-"          You can specify resource metadata by moving items from the left\n"
-"          column to the right column. In the left columns there are metadata\n"
-"          definitions from the Glance Metadata Catalog. Use the \"Other\" option\n"
-"          to add metadata with the key of your choice.\n"
-"        "
-msgstr "\n          您可以從左欄移動項目到右欄來指定資源的描述資料。\n          左欄有來自 Glance 描述資料類別的描述資料定義。\n          使用「其他」選項以使用您自選的鍵來加入描述資料。\n          "
-
-#: templates/horizon/common/_modal_form_update_metadata.html:238
 #: workflows/base.py:594
 msgid "Save"
 msgstr "儲存"
@@ -332,21 +315,21 @@ msgstr "儲存"
 #, python-format
 msgid "Displaying %(nav_items)s item"
 msgid_plural "Displaying %(nav_items)s items"
-msgstr[0] ""
+msgstr[0] "正在顯示 %(nav_items)s 項"
 
 #: templates/horizon/common/_resource_browser.html:11
 #, python-format
 msgid "Displaying %(content_items)s item"
 msgid_plural "Displaying %(content_items)s items"
-msgstr[0] ""
+msgstr[0] "正在顯示 %(content_items)s 項"
 
 #: templates/horizon/common/_usage_summary.html:3
 msgid "Usage Summary"
 msgstr "使用量摘要"
 
 #: templates/horizon/common/_usage_summary.html:7
-msgid "Select a period of time to query its usage"
-msgstr "選擇一個時段來查詢它的使用量"
+msgid "Select a period of time to query its usage:"
+msgstr "選擇一段時期查詢其間的使用量："
 
 #: templates/horizon/common/_usage_summary.html:9
 #, python-format
@@ -367,20 +350,24 @@ msgid "The date should be in YYYY-mm-dd format."
 msgstr "日期的格式應該為 YY-mm-dd。"
 
 #: templates/horizon/common/_usage_summary.html:20
-msgid "Active Instances"
-msgstr "活躍的執行實例"
+msgid "Active Instances:"
+msgstr "有效的執行實例："
 
 #: templates/horizon/common/_usage_summary.html:21
-msgid "Active RAM"
-msgstr "活躍的隨機存取記憶體"
+msgid "Active RAM:"
+msgstr "有效的RAM："
 
 #: templates/horizon/common/_usage_summary.html:22
-msgid "This Period's VCPU-Hours"
-msgstr "此時段的虛擬處理器時數"
+msgid "This Period's VCPU-Hours:"
+msgstr "此段時期的VCPU-小時數："
 
 #: templates/horizon/common/_usage_summary.html:23
-msgid "This Period's GB-Hours"
-msgstr "此時段的 GB 時數"
+msgid "This Period's GB-Hours:"
+msgstr "此段時期的GB-小時數："
+
+#: templates/horizon/common/_usage_summary.html:24
+msgid "This Period's RAM-Hours:"
+msgstr "此時段的記憶體時數"
 
 #: templates/horizon/common/_workflow.html:40
 msgid "Back"
@@ -394,26 +381,26 @@ msgstr "下一步"
 msgid "Horizon"
 msgstr "Horizon"
 
-#: templatetags/horizon.py:130 templatetags/horizon.py:141
+#: templatetags/horizon.py:137 templatetags/horizon.py:148
 msgid "No Limit"
 msgstr "不限制"
 
-#: templatetags/horizon.py:133 templatetags/horizon.py:135
+#: templatetags/horizon.py:140 templatetags/horizon.py:142
 msgid "Available"
 msgstr "可用"
 
-#: templatetags/sizeformat.py:49 templatetags/sizeformat.py:54
+#: templatetags/sizeformat.py:51 templatetags/sizeformat.py:56
 #, python-format
 msgid "%(size)d Byte"
 msgid_plural "%(size)d Bytes"
-msgstr[0] ""
+msgstr[0] "%(size)d 位元組"
 
-#: templatetags/sizeformat.py:57
+#: templatetags/sizeformat.py:59
 #, python-format
 msgid "%s KB"
 msgstr "%s KB"
 
-#: templatetags/sizeformat.py:60
+#: templatetags/sizeformat.py:61
 #, python-format
 msgid "%s MB"
 msgstr "%s MB"
@@ -423,49 +410,59 @@ msgstr "%s MB"
 msgid "%s GB"
 msgstr "%s GB"
 
-#: templatetags/sizeformat.py:66
+#: templatetags/sizeformat.py:65
 #, python-format
 msgid "%s TB"
 msgstr "%s TB"
 
-#: templatetags/sizeformat.py:68
+#: templatetags/sizeformat.py:66
 #, python-format
 msgid "%s PB"
 msgstr "%s PB"
 
-#: templatetags/sizeformat.py:77
-msgid "0 bytes"
+#: templatetags/sizeformat.py:74
+msgid "0 Bytes"
 msgstr "0 位元組"
 
+#. Translators: test code, don't really have to translate
 #: test/test_dashboards/dogs/puppies/tables.py:31
 msgid "Sell Puppy"
 msgid_plural "Sell Puppies"
-msgstr[0] ""
+msgstr[0] "售賣小狗"
 
+#. Translators: test code, don't really have to translate
 #: test/test_dashboards/dogs/puppies/tables.py:40
 msgid "Sold Puppy"
 msgid_plural "Sold Puppies"
-msgstr[0] ""
+msgstr[0] "已賣出小狗"
+
+#: test/tests/views.py:59
+msgid "Fake"
+msgstr "Fake"
 
 #: utils/filters.py:49
 msgid "Never"
 msgstr "永不"
 
-#: utils/validators.py:23 utils/validators.py:47
+#: utils/validators.py:26 utils/validators.py:50
 msgid "Not a valid port number"
 msgstr "不是一個有效的埠口號碼"
 
-#: utils/validators.py:28
+#: utils/validators.py:31
 msgid "Not a valid IP protocol number"
 msgstr "不是一個有效的 IP 協定號碼"
 
-#: utils/validators.py:42
+#: utils/validators.py:45
 msgid "One colon allowed in port range"
 msgstr "允許以冒號隔開埠口範圍"
 
-#: utils/validators.py:49
+#: utils/validators.py:52
 msgid "Port number must be integer"
 msgstr "埠口號碼必須是整數"
+
+#: utils/validators.py:59
+msgid "The string may only contain ASCII printable characters."
+msgstr "字串只能包含 ASCII 可印出的字元。"
 
 #: workflows/base.py:71
 msgid "Processing..."

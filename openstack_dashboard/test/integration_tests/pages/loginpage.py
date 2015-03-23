@@ -13,43 +13,48 @@
 from selenium.webdriver.common import by
 from selenium.webdriver.common import keys
 
-from openstack_dashboard.test.integration_tests.pages import adminpage
+from openstack_dashboard.test.integration_tests.pages.admin.system import \
+    overviewpage as system_overviewpage
 from openstack_dashboard.test.integration_tests.pages import pageobject
-from openstack_dashboard.test.integration_tests.pages import projectpage
+from openstack_dashboard.test.integration_tests.pages.project.compute import \
+    overviewpage as compute_overviewpage
 
 
 class LoginPage(pageobject.PageObject):
-
-    _login_username_field_locator = (by.By.CSS_SELECTOR, '#id_username')
-    _login_password_field_locator = (by.By.CSS_SELECTOR, '#id_password')
+    _login_username_field_locator = (by.By.ID, 'id_username')
+    _login_password_field_locator = (by.By.ID, 'id_password')
     _login_submit_button_locator = (by.By.CSS_SELECTOR,
                                     'div.modal-footer button.btn')
+    _login_logout_reason_locator = (by.By.ID, 'logout_reason')
 
     def __init__(self, driver, conf):
         super(LoginPage, self).__init__(driver, conf)
         self._page_title = "Login"
 
     def is_login_page(self):
-        return self.is_the_current_page() and \
-            self.is_element_visible(*self._login_submit_button_locator)
+        return (self.is_the_current_page() and
+                self._is_element_visible(*self._login_submit_button_locator))
 
     @property
     def username(self):
-        return self.get_element(*self._login_username_field_locator)
+        return self._get_element(*self._login_username_field_locator)
 
     @property
     def password(self):
-        return self.get_element(*self._login_password_field_locator)
+        return self._get_element(*self._login_password_field_locator)
 
     @property
     def login_button(self):
-        return self.get_element(*self._login_submit_button_locator)
+        return self._get_element(*self._login_submit_button_locator)
 
     def _click_on_login_button(self):
         self.login_button.click()
 
     def _press_enter_on_login_button(self):
         self.login_button.send_keys(keys.Keys.RETURN)
+
+    def is_logout_reason_displayed(self):
+        return self._get_element(*self._login_logout_reason_locator)
 
     def login(self, user=None, password=None):
         return self.login_with_mouse_click(user, password)
@@ -77,10 +82,10 @@ class LoginPage(pageobject.PageObject):
         self.username.send_keys(self.conf.identity.admin_username)
         self.password.send_keys(password)
         login_method()
-        return adminpage.AdminPage(self.driver, self.conf)
+        return system_overviewpage.OverviewPage(self.driver, self.conf)
 
     def login_as_user(self, user, password, login_method):
         self.username.send_keys(user)
         self.password.send_keys(password)
         login_method()
-        return projectpage.ProjectPage(self.driver, self.conf)
+        return compute_overviewpage.OverviewPage(self.driver, self.conf)

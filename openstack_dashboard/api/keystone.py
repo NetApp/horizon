@@ -34,6 +34,7 @@ from horizon import messages
 from horizon.utils import functions as utils
 
 from openstack_dashboard.api import base
+from openstack_dashboard import policy
 
 
 LOG = logging.getLogger(__name__)
@@ -143,7 +144,7 @@ def keystoneclient(request, admin=False):
     """
     user = request.user
     if admin:
-        if not user.is_superuser:
+        if not policy.check((("identity", "admin_required"),), request):
             raise exceptions.NotAuthorized
         endpoint_type = 'adminURL'
     else:
@@ -157,9 +158,9 @@ def keystoneclient(request, admin=False):
     # Admin vs. non-admin clients are cached separately for token matching.
     cache_attr = "_keystoneclient_admin" if admin \
         else backend.KEYSTONE_CLIENT_ATTR
-    if hasattr(request, cache_attr) and (not user.token.id
-            or getattr(request, cache_attr).auth_token == user.token.id):
-        LOG.debug("Using cached client for token: %s" % user.token.id)
+    if (hasattr(request, cache_attr) and
+        (not user.token.id or
+         getattr(request, cache_attr).auth_token == user.token.id)):
         conn = getattr(request, cache_attr)
     else:
         endpoint = _get_endpoint_url(request, endpoint_type)
@@ -254,7 +255,7 @@ def tenant_delete(request, project):
 
 
 def tenant_list(request, paginate=False, marker=None, domain=None, user=None,
-                admin=True):
+                admin=True, filters=None):
     manager = VERSIONS.get_project_manager(request, admin=admin)
     page_size = utils.get_page_size(request)
 
@@ -269,7 +270,13 @@ def tenant_list(request, paginate=False, marker=None, domain=None, user=None,
             tenants.pop(-1)
             has_more_data = True
     else:
-        tenants = manager.list(domain=domain, user=user)
+        kwargs = {
+            "domain": domain,
+            "user": user
+        }
+        if filters is not None:
+            kwargs.update(filters)
+        tenants = manager.list(**kwargs)
     return (tenants, has_more_data)
 
 
@@ -283,7 +290,7 @@ def tenant_update(request, project, name=None, description=None,
                               enabled=enabled, domain=domain, **kwargs)
 
 
-def user_list(request, project=None, domain=None, group=None):
+def user_list(request, project=None, domain=None, group=None, filters=None):
     if VERSIONS.active < 3:
         kwargs = {"tenant_id": project}
     else:
@@ -292,6 +299,8 @@ def user_list(request, project=None, domain=None, group=None):
             "domain": domain,
             "group": group
         }
+        if filters is not None:
+            kwargs.update(filters)
     users = keystoneclient(request, admin=True).users.list(**kwargs)
     return [VERSIONS.upgrade_v2_user(user) for user in users]
 
@@ -299,12 +308,16 @@ def user_list(request, project=None, domain=None, group=None):
 def user_create(request, name=None, email=None, password=None, project=None,
                 enabled=None, domain=None):
     manager = keystoneclient(request, admin=True).users
-    if VERSIONS.active < 3:
-        user = manager.create(name, password, email, project, enabled)
-        return VERSIONS.upgrade_v2_user(user)
-    else:
-        return manager.create(name, password=password, email=email,
-                              project=project, enabled=enabled, domain=domain)
+    try:
+        if VERSIONS.active < 3:
+            user = manager.create(name, password, email, project, enabled)
+            return VERSIONS.upgrade_v2_user(user)
+        else:
+            return manager.create(name, password=password, email=email,
+                                  project=project, enabled=enabled,
+                                  domain=domain)
+    except keystone_exceptions.Conflict:
+        raise exceptions.Conflict()
 
 
 def user_delete(request, user_id):
@@ -321,17 +334,18 @@ def user_update(request, user, **data):
     error = None
 
     if not keystone_can_edit_user():
-        raise keystone_exceptions.ClientException(405, _("Identity service "
-                                    "does not allow editing user data."))
+        raise keystone_exceptions.ClientException(
+            405, _("Identity service does not allow editing user data."))
 
-    # The v2 API updates user model, password and default project separately
+    # The v2 API updates user model and default project separately
     if VERSIONS.active < 3:
-        password = data.pop('password')
         project = data.pop('project')
 
         # Update user details
         try:
             user = manager.update(user, **data)
+        except keystone_exceptions.Conflict:
+            raise exceptions.Conflict()
         except Exception:
             error = exceptions.handle(request, ignore=True)
 
@@ -351,32 +365,15 @@ def user_update(request, user, **data):
                                'that project.')
                              % data.get('name', None))
 
-        # If present, update password
-        # FIXME(gabriel): password change should be its own form + view
-        if password:
-            try:
-                user_update_password(request, user, password)
-                if user.id == request.user.id:
-                    return utils.logout_with_message(
-                        request,
-                        _("Password changed. Please log in again to continue.")
-                    )
-            except Exception:
-                error = exceptions.handle(request, ignore=True)
-
         if error is not None:
             raise error
 
     # v3 API is so much simpler...
     else:
-        if not data['password']:
-            data.pop('password')
-        user = manager.update(user, **data)
-        if data.get('password') and user.id == request.user.id:
-            return utils.logout_with_message(
-                request,
-                _("Password changed. Please log in again to continue.")
-            )
+        try:
+            user = manager.update(user, **data)
+        except keystone_exceptions.Conflict:
+            raise exceptions.Conflict()
 
 
 def user_update_enabled(request, user, enabled):
@@ -388,11 +385,37 @@ def user_update_enabled(request, user, enabled):
 
 
 def user_update_password(request, user, password, admin=True):
+
+    if not keystone_can_edit_user():
+        raise keystone_exceptions.ClientException(
+            405, _("Identity service does not allow editing user password."))
+
     manager = keystoneclient(request, admin=admin).users
     if VERSIONS.active < 3:
         return manager.update_password(user, password)
     else:
         return manager.update(user, password=password)
+
+
+def user_verify_admin_password(request, admin_password):
+    # attempt to create a new client instance with admin password to
+    # verify if it's correct.
+    client = keystone_client_v2 if VERSIONS.active < 3 else keystone_client_v3
+    try:
+        endpoint = _get_endpoint_url(request, 'internalURL')
+        insecure = getattr(settings, 'OPENSTACK_SSL_NO_VERIFY', False)
+        cacert = getattr(settings, 'OPENSTACK_SSL_CACERT', None)
+        client.Client(
+            username=request.user.username,
+            password=admin_password,
+            insecure=insecure,
+            cacert=cacert,
+            auth_url=endpoint
+        )
+        return True
+    except Exception:
+        exceptions.handle(request, ignore=True)
+        return False
 
 
 def user_update_own_password(request, origpassword, password):
@@ -459,6 +482,29 @@ def add_group_user(request, group_id, user_id):
 def remove_group_user(request, group_id, user_id):
     manager = keystoneclient(request, admin=True).users
     return manager.remove_from_group(group=group_id, user=user_id)
+
+
+def get_project_groups_roles(request, project):
+    """Gets the groups roles in a given project.
+
+    :param request: the request entity containing the login user information
+    :param project: the project to filter the groups roles. It accepts both
+                    project object resource or project ID
+
+    :returns group_roles: a dictionary mapping the groups and their roles in
+                          given project
+
+    """
+    groups_roles = collections.defaultdict(list)
+    project_role_assignments = role_assignments_list(request,
+                                                     project=project)
+    for role_assignment in project_role_assignments:
+        if not hasattr(role_assignment, 'group'):
+            continue
+        group_id = role_assignment.group['id']
+        role_id = role_assignment.role['id']
+        groups_roles[group_id].append(role_id)
+    return groups_roles
 
 
 def role_assignments_list(request, project=None, user=None, role=None,

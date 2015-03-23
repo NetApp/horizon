@@ -15,6 +15,7 @@
 import logging
 
 from django.core.urlresolvers import reverse
+from django.utils.translation import pgettext_lazy
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext_lazy
 
@@ -89,22 +90,37 @@ class RemoveInterface(policy.PolicyTargetMixin, tables.DeleteAction):
             exceptions.handle(request, msg, redirect=redirect)
 
 
+DISPLAY_CHOICES = (
+    ("UP", pgettext_lazy("Admin state of a Port", u"UP")),
+    ("DOWN", pgettext_lazy("Admin state of a Port", u"DOWN")),
+)
+STATUS_DISPLAY_CHOICES = (
+    ("ACTIVE", pgettext_lazy("current status of port", u"Active")),
+    ("BUILD", pgettext_lazy("current status of port", u"Build")),
+    ("DOWN", pgettext_lazy("current status of port", u"Down")),
+    ("ERROR", pgettext_lazy("current status of port", u"Error")),
+)
+
+
 class PortsTable(tables.DataTable):
-    name = tables.Column("name",
+    name = tables.Column("name_or_id",
                          verbose_name=_("Name"),
                          link="horizon:project:networks:ports:detail")
     fixed_ips = tables.Column(project_tables.get_fixed_ips,
                               verbose_name=_("Fixed IPs"))
-    status = tables.Column("status", verbose_name=_("Status"))
+    status = tables.Column("status",
+                           verbose_name=_("Status"),
+                           display_choices=STATUS_DISPLAY_CHOICES)
     device_owner = tables.Column(get_device_owner,
                                  verbose_name=_("Type"))
     admin_state = tables.Column("admin_state",
-                                verbose_name=_("Admin State"))
+                                verbose_name=_("Admin State"),
+                                display_choices=DISPLAY_CHOICES)
 
     def get_object_display(self, port):
         return port.id
 
-    class Meta:
+    class Meta(object):
         name = "interfaces"
         verbose_name = _("Interfaces")
         table_actions = (AddInterface, RemoveInterface)

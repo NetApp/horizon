@@ -29,6 +29,7 @@ from openstack_dashboard.dashboards.admin.hypervisors \
 class AdminIndexView(tabs.TabbedTableView):
     tab_group_class = project_tabs.HypervisorHostTabs
     template_name = 'admin/hypervisors/index.html'
+    page_title = _("All Hypervisors")
 
     def get_data(self):
         hypervisors = []
@@ -37,7 +38,7 @@ class AdminIndexView(tabs.TabbedTableView):
             hypervisors.sort(key=utils.natural_sort('hypervisor_hostname'))
         except Exception:
             exceptions.handle(self.request,
-                _('Unable to retrieve hypervisor information.'))
+                              _('Unable to retrieve hypervisor information.'))
 
         return hypervisors
 
@@ -47,7 +48,7 @@ class AdminIndexView(tabs.TabbedTableView):
             context["stats"] = api.nova.hypervisor_stats(self.request)
         except Exception:
             exceptions.handle(self.request,
-                _('Unable to retrieve hypervisor statistics.'))
+                              _('Unable to retrieve hypervisor statistics.'))
 
         return context
 
@@ -55,18 +56,22 @@ class AdminIndexView(tabs.TabbedTableView):
 class AdminDetailView(tables.DataTableView):
     table_class = project_tables.AdminHypervisorInstancesTable
     template_name = 'admin/hypervisors/detail.html'
+    page_title = _("Hypervisor Servers")
 
     def get_data(self):
         instances = []
         try:
+            id, name = self.kwargs['hypervisor'].split('_', 1)
             result = api.nova.hypervisor_search(self.request,
-                                                self.kwargs['hypervisor'])
+                                                name)
             for hypervisor in result:
-                try:
-                    instances += hypervisor.servers
-                except AttributeError:
-                    pass
+                if str(hypervisor.id) == id:
+                    try:
+                        instances += hypervisor.servers
+                    except AttributeError:
+                        pass
         except Exception:
-            exceptions.handle(self.request,
+            exceptions.handle(
+                self.request,
                 _('Unable to retrieve hypervisor instances list.'))
         return instances

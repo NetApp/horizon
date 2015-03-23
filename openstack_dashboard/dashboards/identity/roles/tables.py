@@ -13,6 +13,7 @@
 #    under the License.
 
 from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ungettext_lazy
 
 from horizon import tables
 
@@ -44,8 +45,21 @@ class EditRoleLink(tables.LinkAction):
 
 
 class DeleteRolesAction(tables.DeleteAction):
-    data_type_singular = _("Role")
-    data_type_plural = _("Roles")
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Delete Role",
+            u"Delete Roles",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Deleted Role",
+            u"Deleted Roles",
+            count
+        )
     policy_rules = (("identity", "identity:delete_role"),)
 
     def allowed(self, request, role):
@@ -67,7 +81,7 @@ class RolesTable(tables.DataTable):
     name = tables.Column('name', verbose_name=_('Role Name'))
     id = tables.Column('id', verbose_name=_('Role ID'))
 
-    class Meta:
+    class Meta(object):
         name = "roles"
         verbose_name = _("Roles")
         row_actions = (EditRoleLink, DeleteRolesAction)

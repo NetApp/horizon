@@ -61,8 +61,8 @@ TEST_DATA_4 = (
 )
 
 TEST_DATA_5 = (
-    FakeObject('1', 'object_1', 'A Value That is longer than 35 characters!',
-               'down', 'optional_1'),
+    FakeObject('1', 'object_1', 'value_1',
+               'A Status that is longer than 35 characters!', 'optional_1'),
 )
 
 TEST_DATA_6 = (
@@ -130,6 +130,13 @@ class MyBatchAction(tables.BatchAction):
 
     def action(self, request, object_ids):
         pass
+
+
+class MyBatchActionWithHelpText(MyBatchAction):
+    name = "batch_help"
+    help_text = "this is help."
+    action_present = "BatchHelp"
+    action_past = "BatchedHelp"
 
 
 class MyToggleAction(tables.BatchAction):
@@ -209,7 +216,7 @@ class MyTable(tables.DataTable):
     tooltip_dict = {'up': {'title': 'service is up and running',
                            'style': 'color:green;cursor:pointer'},
                     'down': {'title': 'service is not available',
-                           'style': 'color:red;cursor:pointer'}}
+                             'style': 'color:red;cursor:pointer'}}
     id = tables.Column('id', hidden=True, sortable=False)
     name = tables.Column(get_name,
                          verbose_name="Verbose Name",
@@ -222,28 +229,29 @@ class MyTable(tables.DataTable):
                           link='http://example.com/',
                           attrs={'class': 'green blue'},
                           summation="average",
-                          truncate=35,
                           link_classes=('link-modal',),
                           link_attrs={'data-type': 'modal dialog',
                                       'data-tip': 'click for dialog'})
-    status = tables.Column('status', link=get_link,
+    status = tables.Column('status', link=get_link, truncate=35,
                            cell_attributes_getter=tooltip_dict.get)
     optional = tables.Column('optional', empty_value='N/A')
     excluded = tables.Column('excluded')
 
-    class Meta:
+    class Meta(object):
         name = "my_table"
         verbose_name = "My Table"
         status_columns = ["status"]
         columns = ('id', 'name', 'value', 'optional', 'status')
         row_class = MyRow
         column_class = MyColumn
-        table_actions = (MyFilterAction, MyAction, MyBatchAction)
-        row_actions = (MyAction, MyLinkAction, MyBatchAction, MyToggleAction)
+        table_actions = (MyFilterAction, MyAction, MyBatchAction,
+                         MyBatchActionWithHelpText)
+        row_actions = (MyAction, MyLinkAction, MyBatchAction, MyToggleAction,
+                       MyBatchActionWithHelpText)
 
 
 class MyServerFilterTable(MyTable):
-    class Meta:
+    class Meta(object):
         name = "my_table"
         verbose_name = "My Table"
         status_columns = ["status"]
@@ -251,11 +259,12 @@ class MyServerFilterTable(MyTable):
         row_class = MyRow
         column_class = MyColumn
         table_actions = (MyServerFilterAction, MyAction, MyBatchAction)
-        row_actions = (MyAction, MyLinkAction, MyBatchAction, MyToggleAction)
+        row_actions = (MyAction, MyLinkAction, MyBatchAction, MyToggleAction,
+                       MyBatchActionWithHelpText)
 
 
 class MyTableSelectable(MyTable):
-    class Meta:
+    class Meta(object):
         name = "my_table"
         columns = ('id', 'name', 'value', 'status')
         row_class = MyRowSelectable
@@ -271,7 +280,7 @@ class MyTableNotAllowedInlineEdit(MyTable):
                          form_field_attributes={'class': 'test'},
                          update_action=MyUpdateActionNotAllowed)
 
-    class Meta:
+    class Meta(object):
         name = "my_table"
         columns = ('id', 'name', 'value', 'optional', 'status')
         row_class = MyRow
@@ -293,7 +302,7 @@ class MyTableWrapList(MyTable):
 class NoActionsTable(tables.DataTable):
     id = tables.Column('id')
 
-    class Meta:
+    class Meta(object):
         name = "no_actions_table"
         verbose_name = "No Actions Table"
         table_actions = ()
@@ -303,7 +312,7 @@ class NoActionsTable(tables.DataTable):
 class DisabledActionsTable(tables.DataTable):
     id = tables.Column('id')
 
-    class Meta:
+    class Meta(object):
         name = "disabled_actions_table"
         verbose_name = "Disabled Actions Table"
         table_actions = (MyDisabledAction,)
@@ -339,6 +348,7 @@ class DataTableTests(test.TestCase):
         # Actions (these also test ordering)
         self.assertQuerysetEqual(self.table.base_actions.values(),
                                  ['<MyBatchAction: batch>',
+                                  '<MyBatchActionWithHelpText: batch_help>',
                                   '<MyAction: delete>',
                                   '<MyFilterAction: filter>',
                                   '<MyLinkAction: login>',
@@ -346,12 +356,14 @@ class DataTableTests(test.TestCase):
         self.assertQuerysetEqual(self.table.get_table_actions(),
                                  ['<MyFilterAction: filter>',
                                   '<MyAction: delete>',
-                                  '<MyBatchAction: batch>'])
+                                  '<MyBatchAction: batch>',
+                                  '<MyBatchActionWithHelpText: batch_help>'])
         self.assertQuerysetEqual(self.table.get_row_actions(TEST_DATA[0]),
                                  ['<MyAction: delete>',
                                   '<MyLinkAction: login>',
                                   '<MyBatchAction: batch>',
-                                  '<MyToggleAction: toggle>'])
+                                  '<MyToggleAction: toggle>',
+                                  '<MyBatchActionWithHelpText: batch_help>'])
         # Auto-generated columns
         multi_select = self.table.columns['multi_select']
         self.assertEqual("multi_select", multi_select.auto)
@@ -369,7 +381,7 @@ class DataTableTests(test.TestCase):
 
     def test_table_force_no_multiselect(self):
         class TempTable(MyTable):
-            class Meta:
+            class Meta(object):
                 columns = ('id',)
                 table_actions = (MyFilterAction, MyAction,)
                 row_actions = (MyAction, MyLinkAction,)
@@ -381,7 +393,7 @@ class DataTableTests(test.TestCase):
 
     def test_table_force_no_actions_column(self):
         class TempTable(MyTable):
-            class Meta:
+            class Meta(object):
                 columns = ('id',)
                 table_actions = (MyFilterAction, MyAction,)
                 row_actions = (MyAction, MyLinkAction,)
@@ -397,7 +409,7 @@ class DataTableTests(test.TestCase):
                                  verbose_name="Verbose Name",
                                  sortable=True)
 
-            class Meta:
+            class Meta(object):
                 name = "my_table"
                 columns = ('id', 'name', 'value', 'optional', 'status')
 
@@ -409,7 +421,7 @@ class DataTableTests(test.TestCase):
 
     def test_table_natural_no_actions_column(self):
         class TempTable(MyTable):
-            class Meta:
+            class Meta(object):
                 columns = ('id',)
                 table_actions = (MyFilterAction, MyAction,)
         self.table = TempTable(self.request, TEST_DATA)
@@ -419,7 +431,7 @@ class DataTableTests(test.TestCase):
 
     def test_table_natural_no_multiselect(self):
         class TempTable(MyTable):
-            class Meta:
+            class Meta(object):
                 columns = ('id',)
                 row_actions = (MyAction, MyLinkAction,)
         self.table = TempTable(self.request, TEST_DATA)
@@ -431,7 +443,7 @@ class DataTableTests(test.TestCase):
         class TempTable(MyTable):
             extra = tables.Column('extra')
 
-            class Meta:
+            class Meta(object):
                 name = "temp_table"
                 table_actions = (MyFilterAction, MyAction,)
                 row_actions = (MyAction, MyLinkAction,)
@@ -549,9 +561,9 @@ class DataTableTests(test.TestCase):
         self.table = MyTable(self.request, TEST_DATA_5)
         row = self.table.get_rows()[0]
 
-        self.assertEqual(35, len(row.cells['value'].data))
-        self.assertEqual(u'A Value That is longer than 35 c...',
-                         row.cells['value'].data)
+        self.assertEqual(35, len(row.cells['status'].data))
+        self.assertEqual(u'A Status that is longer than 35 ...',
+                         row.cells['status'].data)
 
     def test_table_rendering(self):
         self.table = MyTable(self.request, TEST_DATA)
@@ -562,15 +574,30 @@ class DataTableTests(test.TestCase):
         self.assertContains(resp, "my_table__filter__q", 1)
         self.assertContains(resp, "my_table__delete", 1)
         self.assertContains(resp, 'id="my_table__action_delete"', 1)
+
+        # Table BatchActions
+        self.assertContains(resp, 'id="my_table__action_batch_help"', 1)
+        self.assertContains(resp, 'help_text="this is help."', 1)
+        self.assertContains(resp, 'BatchHelp Item', 1)
+
         # Row actions
         row_actions = self.table.render_row_actions(TEST_DATA[0])
         resp = http.HttpResponse(row_actions)
-        self.assertContains(resp, "<li", 3)
+        self.assertContains(resp, "<li", 4)
         self.assertContains(resp, "my_table__delete__1", 1)
         self.assertContains(resp, "my_table__toggle__1", 1)
         self.assertContains(resp, "/auth/login/", 1)
         self.assertContains(resp, "ajax-modal", 1)
         self.assertContains(resp, 'id="my_table__row_1__action_delete"', 1)
+
+        # Row BatchActions
+        row_actions = self.table.render_row_actions(TEST_DATA[0])
+        resp = http.HttpResponse(row_actions)
+        self.assertContains(resp, 'id="my_table__row_1__action_batch_help"', 1)
+        self.assertContains(resp, 'help_text="this is help."', 1)
+        self.assertContains(resp, 'value="my_table__batch_help__1"', 1)
+        self.assertContains(resp, 'BatchHelp Item', 1)
+
         # Whole table
         resp = http.HttpResponse(self.table.render())
         self.assertContains(resp, '<table id="my_table"', 1)
@@ -581,12 +608,19 @@ class DataTableTests(test.TestCase):
         update_string = "action=row_update&amp;table=my_table&amp;obj_id="
         self.assertContains(resp, update_string, 3)
         self.assertContains(resp, "data-update-interval", 3)
+        # Verify no table heading
+        self.assertNotContains(resp, "<h3 class='table_title'")
         # Verify our XSS protection
         self.assertContains(resp, '<a href="http://example.com/" '
                                   'data-tip="click for dialog" '
                                   'data-type="modal dialog" '
                                   'class="link-modal">'
                                   '&lt;strong&gt;evil&lt;/strong&gt;</a>', 1)
+        # Hidden Title = False shows the table title
+        self.table._meta.hidden_title = False
+        resp = http.HttpResponse(self.table.render())
+        self.assertContains(resp, "<h3 class='table_title'", 1)
+
         # Filter = False hides the search box
         self.table._meta.filter = False
         table_actions = self.table.render_table_actions()
@@ -720,7 +754,7 @@ class DataTableTests(test.TestCase):
                                  form_field_attributes={'class': 'test'},
                                  update_action=MyUpdateAction)
 
-            class Meta:
+            class Meta(object):
                 name = "my_table"
                 columns = ('id', 'name', 'value', 'optional', 'status')
 
@@ -757,7 +791,7 @@ class DataTableTests(test.TestCase):
                                  form_field_attributes={'class': 'test'},
                                  update_action=MyUpdateAction)
 
-            class Meta:
+            class Meta(object):
                 name = "my_table"
                 columns = ('id', 'name', 'value', 'optional', 'status')
 
@@ -796,11 +830,17 @@ class DataTableTests(test.TestCase):
         toggle_action = self.table.get_row_actions(TEST_DATA_3[0])[2]
         self.assertEqual("Batch Item", unicode(toggle_action.verbose_name))
 
+        # Batch action with custom help text
+        req = self.factory.get('/my_url/')
+        self.table = MyTable(req, TEST_DATA_3)
+        toggle_action = self.table.get_row_actions(TEST_DATA_3[0])[4]
+        self.assertEqual("BatchHelp Item", unicode(toggle_action.verbose_name))
+
         # Single object toggle action
         # GET page - 'up' to 'down'
         req = self.factory.get('/my_url/')
         self.table = MyTable(req, TEST_DATA_3)
-        self.assertEqual(4, len(self.table.get_row_actions(TEST_DATA_3[0])))
+        self.assertEqual(5, len(self.table.get_row_actions(TEST_DATA_3[0])))
         toggle_action = self.table.get_row_actions(TEST_DATA_3[0])[3]
         self.assertEqual("Down Item", unicode(toggle_action.verbose_name))
 
@@ -821,7 +861,7 @@ class DataTableTests(test.TestCase):
         # GET page - 'down' to 'up'
         req = self.factory.get('/my_url/')
         self.table = MyTable(req, TEST_DATA_2)
-        self.assertEqual(3, len(self.table.get_row_actions(TEST_DATA_2[0])))
+        self.assertEqual(4, len(self.table.get_row_actions(TEST_DATA_2[0])))
         toggle_action = self.table.get_row_actions(TEST_DATA_2[0])[2]
         self.assertEqual("Up Item", unicode(toggle_action.verbose_name))
 
@@ -877,7 +917,8 @@ class DataTableTests(test.TestCase):
         self.assertQuerysetEqual(self.table.get_table_actions(),
                                  ['<MyFilterAction: filter>',
                                   '<MyAction: delete>',
-                                  '<MyBatchAction: batch>'])
+                                  '<MyBatchAction: batch>',
+                                  '<MyBatchActionWithHelpText: batch_help>'])
 
         # Zero objects in table
         # BatchAction not available
@@ -1117,7 +1158,7 @@ class DataTableTests(test.TestCase):
         self.assertNotContains(res, '<td>6</td>')
 
         # Even if "average" summation method is specified,
-        # we have summation fields but no value is provoded
+        # we have summation fields but no value is provided
         # if the provided data cannot be summed.
         table = MyTable(self.request, TEST_DATA)
         res = http.HttpResponse(table.render())
@@ -1151,7 +1192,7 @@ class DataTableTests(test.TestCase):
         res = http.HttpResponse(table.render())
         self.assertContains(res, "multi_select_column hidden")
 
-    def test_table_action_object_display_is_none(self):
+    def test_table_action_object_display_is_id(self):
         action_string = "my_table__toggle__1"
         req = self.factory.post('/my_url/', {'action': action_string})
         self.table = MyTable(req, TEST_DATA)
@@ -1165,7 +1206,7 @@ class DataTableTests(test.TestCase):
         handled = self.table.maybe_handle()
         self.assertEqual(302, handled.status_code)
         self.assertEqual("/my_url/", handled["location"])
-        self.assertEqual(u"Downed Item: N/A",
+        self.assertEqual(u"Downed Item: 1",
                          list(req._messages)[0].message)
 
     def test_table_column_can_be_selected(self):
@@ -1281,7 +1322,7 @@ class APIFilterTableView(SingleTableView):
 class TableWithPermissions(tables.DataTable):
     id = tables.Column('id')
 
-    class Meta:
+    class Meta(object):
         name = "table_with_permissions"
         permissions = ('horizon.test',)
 
@@ -1343,25 +1384,65 @@ class DataTableViewTests(test.TestCase):
         self.assertEqual(TableWithPermissions,
                          context['table_with_permissions_table'].__class__)
 
-    def test_api_filter_table_view(self):
-        filter_value_param = "my_table__filter__q"
-        filter_field_param = '%s_field' % filter_value_param
-        req = self.factory.post('/my_url/', {filter_value_param: 'up',
-                                             filter_field_param: 'status'})
-        req.user = self.user
+    fil_value_param = "my_table__filter__q"
+    fil_field_param = '%s_field' % fil_value_param
+
+    def _test_filter_setup_view(self, request):
         view = APIFilterTableView()
-        view.request = req
+        view.request = request
         view.kwargs = {}
-        view.handle_server_filter(req)
+        view.handle_server_filter(request)
+        return view
+
+    def test_api_filter_table_view(self):
+        req = self.factory.post('/my_url/', {self.fil_value_param: 'up',
+                                             self.fil_field_param: 'status'})
+        req.user = self.user
+        view = self._test_filter_setup_view(req)
+        data = view.get_data()
         context = view.get_context_data()
         self.assertEqual(context['table'].__class__, MyServerFilterTable)
-        data = view.get_data()
         self.assertQuerysetEqual(data,
                                  ['<FakeObject: object_1>',
                                   '<FakeObject: object_2>',
                                   '<FakeObject: object_3>'])
-        self.assertEqual(req.session.get(filter_value_param), 'up')
-        self.assertEqual(req.session.get(filter_field_param), 'status')
+        self.assertEqual(req.session.get(self.fil_value_param), 'up')
+        self.assertEqual(req.session.get(self.fil_field_param), 'status')
+
+    def test_filter_changed_deleted(self):
+        req = self.factory.post('/my_url/', {self.fil_value_param: '',
+                                             self.fil_field_param: 'status'})
+        req.session[self.fil_value_param] = 'up'
+        req.session[self.fil_field_param] = 'status'
+        req.user = self.user
+        view = self._test_filter_setup_view(req)
+        context = view.get_context_data()
+        self.assertEqual(context['table'].__class__, MyServerFilterTable)
+        self.assertEqual(req.session.get(self.fil_value_param), '')
+        self.assertEqual(req.session.get(self.fil_field_param), 'status')
+
+    def test_filter_changed_nothing_sent(self):
+        req = self.factory.post('/my_url/', {})
+        req.session[self.fil_value_param] = 'up'
+        req.session[self.fil_field_param] = 'status'
+        req.user = self.user
+        view = self._test_filter_setup_view(req)
+        context = view.get_context_data()
+        self.assertEqual(context['table'].__class__, MyServerFilterTable)
+        self.assertEqual(req.session.get(self.fil_value_param), 'up')
+        self.assertEqual(req.session.get(self.fil_field_param), 'status')
+
+    def test_filter_changed_new_filter_sent(self):
+        req = self.factory.post('/my_url/', {self.fil_value_param: 'down',
+                                             self.fil_field_param: 'status'})
+        req.session[self.fil_value_param] = 'up'
+        req.session[self.fil_field_param] = 'status'
+        req.user = self.user
+        view = self._test_filter_setup_view(req)
+        context = view.get_context_data()
+        self.assertEqual(context['table'].__class__, MyServerFilterTable)
+        self.assertEqual(req.session.get(self.fil_value_param), 'down')
+        self.assertEqual(req.session.get(self.fil_field_param), 'status')
 
 
 class FormsetTableTests(test.TestCase):
@@ -1381,7 +1462,7 @@ class FormsetTableTests(test.TestCase):
             name = tables.Column('name')
             value = tables.Column('value')
 
-            class Meta:
+            class Meta(object):
                 name = 'table'
 
         table = Table(self.request)

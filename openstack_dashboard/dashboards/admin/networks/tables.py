@@ -16,6 +16,7 @@ import logging
 
 from django.core.urlresolvers import reverse
 from django.template import defaultfilters as filters
+from django.utils.translation import pgettext_lazy
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext_lazy
 
@@ -82,9 +83,15 @@ class EditNetwork(policy.PolicyTargetMixin, tables.LinkAction):
 #    return ','.join(cidrs)
 
 
+DISPLAY_CHOICES = (
+    ("UP", pgettext_lazy("Admin state of a Network", u"UP")),
+    ("DOWN", pgettext_lazy("Admin state of a Network", u"DOWN")),
+)
+
+
 class NetworksTable(tables.DataTable):
     tenant = tables.Column("tenant_name", verbose_name=_("Project"))
-    name = tables.Column("name", verbose_name=_("Network Name"),
+    name = tables.Column("name_or_id", verbose_name=_("Network Name"),
                          link='horizon:admin:networks:detail')
     subnets = tables.Column(project_tables.get_subnets,
                             verbose_name=_("Subnets Associated"),)
@@ -94,18 +101,21 @@ class NetworksTable(tables.DataTable):
                            filters=(filters.yesno, filters.capfirst))
     status = tables.Column("status", verbose_name=_("Status"))
     admin_state = tables.Column("admin_state",
-                                verbose_name=_("Admin State"))
+                                verbose_name=_("Admin State"),
+                                display_choices=DISPLAY_CHOICES)
 
-    class Meta:
+    class Meta(object):
         name = "networks"
         verbose_name = _("Networks")
-        table_actions = (CreateNetwork, DeleteNetwork)
+        table_actions = (CreateNetwork, DeleteNetwork,
+                         project_tables.NetworksFilterAction)
         row_actions = (EditNetwork, DeleteNetwork)
 
     def __init__(self, request, data=None, needs_form_wrapper=None, **kwargs):
-        super(NetworksTable, self).__init__(request, data=data,
-                                        needs_form_wrapper=needs_form_wrapper,
-                                        **kwargs)
+        super(NetworksTable, self).__init__(
+            request, data=data,
+            needs_form_wrapper=needs_form_wrapper,
+            **kwargs)
         if not api.neutron.is_extension_supported(request,
                                                   'dhcp_agent_scheduler'):
             del self.columns['num_agents']

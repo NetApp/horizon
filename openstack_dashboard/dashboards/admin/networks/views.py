@@ -39,6 +39,7 @@ from openstack_dashboard.dashboards.admin.networks \
 class IndexView(tables.DataTableView):
     table_class = networks_tables.NetworksTable
     template_name = 'admin/networks/index.html'
+    page_title = _("Networks")
 
     @memoized.memoized_method
     def _get_tenant_list(self):
@@ -46,7 +47,8 @@ class IndexView(tables.DataTableView):
             tenants, has_more = api.keystone.tenant_list(self.request)
         except Exception:
             tenants = []
-            msg = _('Unable to retrieve instance project information.')
+            msg = _("Unable to retrieve information about the "
+                    "networks' projects.")
             exceptions.handle(self.request, msg)
 
         tenant_dict = SortedDict([(t.id, t) for t in tenants])
@@ -82,8 +84,6 @@ class IndexView(tables.DataTableView):
                 # Set tenant name
                 tenant = tenant_dict.get(n.tenant_id, None)
                 n.tenant_name = getattr(tenant, 'name', None)
-                # If name is empty use UUID as name
-                n.set_id_as_name_if_empty()
                 n.num_agents = self._get_agents_data(n.id)
 
             if self.exception:
@@ -96,6 +96,7 @@ class CreateView(forms.ModalFormView):
     form_class = project_forms.CreateNetwork
     template_name = 'admin/networks/create.html'
     success_url = reverse_lazy('horizon:admin:networks:index')
+    page_title = _("Create Network")
 
 
 class DetailView(tables.MultiTableView):
@@ -103,7 +104,7 @@ class DetailView(tables.MultiTableView):
                      ports_tables.PortsTable,
                      agents_tables.DHCPAgentsTable)
     template_name = 'project/networks/detail.html'
-    failure_url = reverse_lazy('horizon:admin:networks:index')
+    page_title = _("Network Details: {{ network.name }}")
 
     def get_subnets_data(self):
         try:
@@ -114,8 +115,6 @@ class DetailView(tables.MultiTableView):
             subnets = []
             msg = _('Subnet list can not be retrieved.')
             exceptions.handle(self.request, msg)
-        for s in subnets:
-            s.set_id_as_name_if_empty()
         return subnets
 
     def get_ports_data(self):
@@ -126,8 +125,6 @@ class DetailView(tables.MultiTableView):
             ports = []
             msg = _('Port list can not be retrieved.')
             exceptions.handle(self.request, msg)
-        for p in ports:
-            p.set_id_as_name_if_empty()
         return ports
 
     def get_agents_data(self):
@@ -148,16 +145,16 @@ class DetailView(tables.MultiTableView):
             network = api.neutron.network_get(self.request, network_id)
             network.set_id_as_name_if_empty(length=0)
         except Exception:
-            redirect = self.failure_url
             exceptions.handle(self.request,
                               _('Unable to retrieve details for '
                                 'network "%s".') % network_id,
-                                redirect=redirect)
+                              redirect=self.get_redirect_url())
+
         return network
 
     def get_context_data(self, **kwargs):
         context = super(DetailView, self).get_context_data(**kwargs)
-        context["network"] = self._get_data()
+        network = self._get_data()
         # Needs to exclude agents table if dhcp-agent-scheduler extension
         # is not supported.
         try:
@@ -166,13 +163,23 @@ class DetailView(tables.MultiTableView):
             context['dhcp_agent_support'] = dhcp_agent_support
         except Exception:
             context['dhcp_agent_support'] = False
+
+        table = networks_tables.NetworksTable(self.request)
+        context["network"] = network
+        context["url"] = self.get_redirect_url()
+        context["actions"] = table.render_row_actions(network)
         return context
+
+    @staticmethod
+    def get_redirect_url():
+        return reverse_lazy('horizon:admin:networks:index')
 
 
 class UpdateView(user_views.UpdateView):
     form_class = project_forms.UpdateNetwork
     template_name = 'admin/networks/update.html'
     success_url = reverse_lazy('horizon:admin:networks:index')
+    submit_url = "horizon:admin:networks:update"
 
     def get_initial(self):
         network = self._get_object()

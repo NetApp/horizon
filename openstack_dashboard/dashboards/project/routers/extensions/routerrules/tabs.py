@@ -83,14 +83,12 @@ class RulesGridTab(tabs.Tab):
 
     def get_routerrulesgrid_data(self, rules):
         ports = self.tab_group.ports
-        networks = api.neutron.network_list_for_tenant(self.request,
-                                         self.request.user.tenant_id)
-        for n in networks:
-            n.set_id_as_name_if_empty()
+        networks = api.neutron.network_list_for_tenant(
+            self.request, self.request.user.tenant_id)
         netnamemap = {}
         subnetmap = {}
         for n in networks:
-            netnamemap[n['id']] = n['name']
+            netnamemap[n['id']] = n.name_or_id
             for s in n.subnets:
                 subnetmap[s.id] = {'name': s.name,
                                    'cidr': s.cidr}
@@ -158,9 +156,9 @@ class RulesGridTab(tabs.Tab):
             dst = netaddr.IPNetwork(dst)
             # check if cidrs are affected by rule first
             if (int(dst.network) >= int(rd.broadcast) or
-                int(dst.broadcast) <= int(rd.network) or
-                int(src.network) >= int(rs.broadcast) or
-                   int(src.broadcast) <= int(rs.network)):
+                    int(dst.broadcast) <= int(rd.network) or
+                    int(src.network) >= int(rs.broadcast) or
+                    int(src.broadcast) <= int(rs.network)):
                 continue
 
             # skip matching rules for 'any' and 'external' networks
@@ -194,7 +192,7 @@ class RulesGridTab(tabs.Tab):
                              reverse=True)
         match = sortedrules[0]
         if (match['bitsinsrc'] > src.prefixlen or
-               match['bitsindst'] > dst.prefixlen):
+                match['bitsindst'] > dst.prefixlen):
             connectivity['reachable'] = 'partial'
             connectivity['conflicting_rule'] = match['rule']
             return connectivity

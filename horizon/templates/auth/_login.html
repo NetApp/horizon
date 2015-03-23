@@ -19,8 +19,8 @@
     </div>
     {% endif  %}
     {% if request.COOKIES.logout_reason %}
-    <div class="form-group clearfix error">
-      <span class="help-block"><p>{{ request.COOKIES.logout_reason }}</p></span>
+    <div class="form-group clearfix error" id="logout_reason">
+      <span class="help-block alert alert-danger"><p>{{ request.COOKIES.logout_reason }}</p></span>
     </div>
     {% endif %}
     {% if next %}<input type="hidden" name="{{ redirect_field_name }}" value="{{ next }}" />{% endif %}
@@ -29,5 +29,5 @@
 {% endblock %}
 
 {% block modal-footer %}
-  <button type="submit" class="btn btn-primary pull-right">{% trans "Sign In" %}</button>
+  <button id="loginBtn" type="submit" class="btn btn-primary pull-right">{% trans "Sign In" %}</button>
 {% endblock %}

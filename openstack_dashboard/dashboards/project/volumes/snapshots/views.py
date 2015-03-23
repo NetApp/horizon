@@ -24,12 +24,18 @@ from openstack_dashboard import api
 from openstack_dashboard.dashboards.project.volumes \
     .snapshots import forms as vol_snapshot_forms
 from openstack_dashboard.dashboards.project.volumes \
+    .snapshots import tables as vol_snapshot_tables
+from openstack_dashboard.dashboards.project.volumes \
     .snapshots import tabs as vol_snapshot_tabs
 
 
 class UpdateView(forms.ModalFormView):
     form_class = vol_snapshot_forms.UpdateForm
+    form_id = "update_snapshot_form"
+    modal_header = _("Edit Snapshot")
     template_name = 'project/volumes/snapshots/update.html'
+    submit_label = _("Save Changes")
+    submit_url = "horizon:project:volumes:snapshots:update"
     success_url = reverse_lazy("horizon:project:volumes:index")
 
     @memoized.memoized_method
@@ -47,6 +53,8 @@ class UpdateView(forms.ModalFormView):
     def get_context_data(self, **kwargs):
         context = super(UpdateView, self).get_context_data(**kwargs)
         context['snapshot'] = self.get_object()
+        args = (self.kwargs['snapshot_id'],)
+        context['submit_url'] = reverse(self.submit_url, args=args)
         return context
 
     def get_initial(self):
@@ -59,10 +67,15 @@ class UpdateView(forms.ModalFormView):
 class DetailView(tabs.TabView):
     tab_group_class = vol_snapshot_tabs.SnapshotDetailTabs
     template_name = 'project/volumes/snapshots/detail.html'
+    page_title = _("Volume Snapshot Details: {{ snapshot.name }}")
 
     def get_context_data(self, **kwargs):
         context = super(DetailView, self).get_context_data(**kwargs)
-        context["snapshot"] = self.get_data()
+        snapshot = self.get_data()
+        table = vol_snapshot_tables.VolumeSnapshotsTable(self.request)
+        context["snapshot"] = snapshot
+        context["url"] = self.get_redirect_url()
+        context["actions"] = table.render_row_actions(snapshot)
         return context
 
     @memoized.memoized_method
@@ -78,7 +91,8 @@ class DetailView(tabs.TabView):
                               redirect=redirect)
         return snapshot
 
-    def get_redirect_url(self):
+    @staticmethod
+    def get_redirect_url():
         return reverse('horizon:project:volumes:index')
 
     def get_tabs(self, request, *args, **kwargs):

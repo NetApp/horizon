@@ -20,7 +20,6 @@ import netaddr
 
 from django.conf import settings
 from django.core.urlresolvers import reverse
-from django.core import validators
 from django.forms import ValidationError  # noqa
 from django.utils.translation import ugettext_lazy as _
 
@@ -33,58 +32,68 @@ from openstack_dashboard import api
 from openstack_dashboard.utils import filters
 
 
-class CreateGroup(forms.SelfHandlingForm):
+class GroupBase(forms.SelfHandlingForm):
+    """Base class to handle creation and update of security groups.
+
+    Children classes must define two attributes:
+
+    .. attribute:: success_message
+
+        A success message containing the placeholder %s,
+        which will be replaced by the group name.
+
+    .. attribute:: error_message
+
+        An error message containing the placeholder %s,
+        which will be replaced by the error message.
+    """
     name = forms.CharField(label=_("Name"),
                            max_length=255,
-                           error_messages={
-                               'required': _('This field is required.'),
-                               'invalid': _("The string may only contain"
-                                            " ASCII characters and numbers.")},
-                           validators=[validators.validate_slug])
-    description = forms.CharField(label=_("Description"))
+                           validators=[
+                               utils_validators.validate_printable_ascii])
+    description = forms.CharField(label=_("Description"),
+                                  required=False,
+                                  widget=forms.Textarea(attrs={'rows': 4}))
+
+    def _call_network_api(self, request, data):
+        """Call the underlying network API: Nova-network or Neutron.
+
+        Used in children classes to create or update a group.
+        """
+        raise NotImplementedError()
 
     def handle(self, request, data):
         try:
-            sg = api.network.security_group_create(request,
-                                                   data['name'],
-                                                   data['description'])
-            messages.success(request,
-                             _('Successfully created security group: %s')
-                               % data['name'])
+            sg = self._call_network_api(request, data)
+            messages.success(request, self.success_message % sg.name)
             return sg
-        except Exception:
+        except Exception as e:
             redirect = reverse("horizon:project:access_and_security:index")
-            exceptions.handle(request,
-                              _('Unable to create security group.'),
-                              redirect=redirect)
+            error_msg = self.error_message % e
+            exceptions.handle(request, error_msg, redirect=redirect)
 
 
-class UpdateGroup(forms.SelfHandlingForm):
+class CreateGroup(GroupBase):
+    success_message = _('Successfully created security group: %s')
+    error_message = _('Unable to create security group: %s')
+
+    def _call_network_api(self, request, data):
+        return api.network.security_group_create(request,
+                                                 data['name'],
+                                                 data['description'])
+
+
+class UpdateGroup(GroupBase):
+    success_message = _('Successfully updated security group: %s')
+    error_message = _('Unable to update security group: %s')
+
     id = forms.CharField(widget=forms.HiddenInput())
-    name = forms.CharField(label=_("Name"),
-                           max_length=255,
-                           error_messages={
-                               'required': _('This field is required.'),
-                               'invalid': _("The string may only contain"
-                                            " ASCII characters and numbers.")},
-                           validators=[validators.validate_slug])
-    description = forms.CharField(label=_("Description"))
 
-    def handle(self, request, data):
-        try:
-            sg = api.network.security_group_update(request,
-                                                   data['id'],
-                                                   data['name'],
-                                                   data['description'])
-            messages.success(request,
-                             _('Successfully updated security group: %s')
-                               % data['name'])
-            return sg
-        except Exception:
-            redirect = reverse("horizon:project:access_and_security:index")
-            exceptions.handle(request,
-                              _('Unable to update security group.'),
-                              redirect=redirect)
+    def _call_network_api(self, request, data):
+        return api.network.security_group_update(request,
+                                                 data['id'],
+                                                 data['name'],
+                                                 data['description'])
 
 
 class AddRule(forms.SelfHandlingForm):
@@ -192,26 +201,26 @@ class AddRule(forms.SelfHandlingForm):
                                choices=[('cidr', _('CIDR')),
                                         ('sg', _('Security Group'))],
                                help_text=_('To specify an allowed IP '
-                                           'range, select "CIDR". To '
-                                           'allow access from all '
+                                           'range, select &quot;CIDR&quot;. '
+                                           'To allow access from all '
                                            'members of another security '
-                                           'group select "Security '
-                                           'Group".'),
+                                           'group select &quot;Security '
+                                           'Group&quot;.'),
                                widget=forms.Select(attrs={
                                    'class': 'switchable',
                                    'data-slug': 'remote'}))
 
     cidr = forms.IPField(label=_("CIDR"),
-                          required=False,
-                          initial="0.0.0.0/0",
-                          help_text=_("Classless Inter-Domain Routing "
-                                      "(e.g. 192.168.0.0/24)"),
-                          version=forms.IPv4 | forms.IPv6,
-                          mask=True,
-                          widget=forms.TextInput(
-                              attrs={'class': 'switched',
-                                     'data-switch-on': 'remote',
-                                     'data-remote-cidr': _('CIDR')}))
+                         required=False,
+                         initial="0.0.0.0/0",
+                         help_text=_("Classless Inter-Domain Routing "
+                                     "(e.g. 192.168.0.0/24)"),
+                         version=forms.IPv4 | forms.IPv6,
+                         mask=True,
+                         widget=forms.TextInput(
+                             attrs={'class': 'switched',
+                                    'data-switch-on': 'remote',
+                                    'data-remote-cidr': _('CIDR')}))
 
     security_group = forms.ChoiceField(label=_('Security Group'),
                                        required=False,
@@ -269,72 +278,82 @@ class AddRule(forms.SelfHandlingForm):
             # and it is available only for neutron security group.
             self.fields['ip_protocol'].widget = forms.HiddenInput()
 
-    def clean(self):
-        cleaned_data = super(AddRule, self).clean()
+    def _update_and_pop_error(self, cleaned_data, key, value):
+        cleaned_data[key] = value
+        self.errors.pop(key, None)
 
-        def update_cleaned_data(key, value):
-            cleaned_data[key] = value
-            self.errors.pop(key, None)
-
-        rule_menu = cleaned_data.get('rule_menu')
-        port_or_range = cleaned_data.get("port_or_range")
-        remote = cleaned_data.get("remote")
-
+    def _clean_rule_icmp(self, cleaned_data, rule_menu):
         icmp_type = cleaned_data.get("icmp_type", None)
         icmp_code = cleaned_data.get("icmp_code", None)
 
+        self._update_and_pop_error(cleaned_data, 'ip_protocol', rule_menu)
+        if icmp_type is None:
+            msg = _('The ICMP type is invalid.')
+            raise ValidationError(msg)
+        if icmp_code is None:
+            msg = _('The ICMP code is invalid.')
+            raise ValidationError(msg)
+        if icmp_type not in range(-1, 256):
+            msg = _('The ICMP type not in range (-1, 255)')
+            raise ValidationError(msg)
+        if icmp_code not in range(-1, 256):
+            msg = _('The ICMP code not in range (-1, 255)')
+            raise ValidationError(msg)
+        self._update_and_pop_error(cleaned_data, 'from_port', icmp_type)
+        self._update_and_pop_error(cleaned_data, 'to_port', icmp_code)
+        self._update_and_pop_error(cleaned_data, 'port', None)
+
+    def _clean_rule_tcp_udp(self, cleaned_data, rule_menu):
+        port_or_range = cleaned_data.get("port_or_range")
         from_port = cleaned_data.get("from_port", None)
         to_port = cleaned_data.get("to_port", None)
         port = cleaned_data.get("port", None)
 
+        self._update_and_pop_error(cleaned_data, 'ip_protocol', rule_menu)
+        self._update_and_pop_error(cleaned_data, 'icmp_code', None)
+        self._update_and_pop_error(cleaned_data, 'icmp_type', None)
+        if port_or_range == "port":
+            self._update_and_pop_error(cleaned_data, 'from_port', port)
+            self._update_and_pop_error(cleaned_data, 'to_port', port)
+            if port is None:
+                msg = _('The specified port is invalid.')
+                raise ValidationError(msg)
+        else:
+            self._update_and_pop_error(cleaned_data, 'port', None)
+            if from_port is None:
+                msg = _('The "from" port number is invalid.')
+                raise ValidationError(msg)
+            if to_port is None:
+                msg = _('The "to" port number is invalid.')
+                raise ValidationError(msg)
+            if to_port < from_port:
+                msg = _('The "to" port number must be greater than '
+                        'or equal to the "from" port number.')
+                raise ValidationError(msg)
+
+    def _apply_rule_menu(self, cleaned_data, rule_menu):
+        cleaned_data['ip_protocol'] = self.rules[rule_menu]['ip_protocol']
+        cleaned_data['from_port'] = int(self.rules[rule_menu]['from_port'])
+        cleaned_data['to_port'] = int(self.rules[rule_menu]['to_port'])
+        if rule_menu not in ['all_tcp', 'all_udp', 'all_icmp']:
+            direction = self.rules[rule_menu].get('direction')
+            cleaned_data['direction'] = direction
+
+    def _clean_rule_menu(self, cleaned_data):
+        rule_menu = cleaned_data.get('rule_menu')
         if rule_menu == 'icmp':
-            update_cleaned_data('ip_protocol', rule_menu)
-            if icmp_type is None:
-                msg = _('The ICMP type is invalid.')
-                raise ValidationError(msg)
-            if icmp_code is None:
-                msg = _('The ICMP code is invalid.')
-                raise ValidationError(msg)
-            if icmp_type not in range(-1, 256):
-                msg = _('The ICMP type not in range (-1, 255)')
-                raise ValidationError(msg)
-            if icmp_code not in range(-1, 256):
-                msg = _('The ICMP code not in range (-1, 255)')
-                raise ValidationError(msg)
-            update_cleaned_data('from_port', icmp_type)
-            update_cleaned_data('to_port', icmp_code)
-            update_cleaned_data('port', None)
+            self._clean_rule_icmp(cleaned_data, rule_menu)
         elif rule_menu == 'tcp' or rule_menu == 'udp':
-            update_cleaned_data('ip_protocol', rule_menu)
-            update_cleaned_data('icmp_code', None)
-            update_cleaned_data('icmp_type', None)
-            if port_or_range == "port":
-                update_cleaned_data('from_port', port)
-                update_cleaned_data('to_port', port)
-                if port is None:
-                    msg = _('The specified port is invalid.')
-                    raise ValidationError(msg)
-            else:
-                update_cleaned_data('port', None)
-                if from_port is None:
-                    msg = _('The "from" port number is invalid.')
-                    raise ValidationError(msg)
-                if to_port is None:
-                    msg = _('The "to" port number is invalid.')
-                    raise ValidationError(msg)
-                if to_port < from_port:
-                    msg = _('The "to" port number must be greater than '
-                            'or equal to the "from" port number.')
-                    raise ValidationError(msg)
+            self._clean_rule_tcp_udp(cleaned_data, rule_menu)
         elif rule_menu == 'custom':
             pass
         else:
-            cleaned_data['ip_protocol'] = self.rules[rule_menu]['ip_protocol']
-            cleaned_data['from_port'] = int(self.rules[rule_menu]['from_port'])
-            cleaned_data['to_port'] = int(self.rules[rule_menu]['to_port'])
-            if rule_menu not in ['all_tcp', 'all_udp', 'all_icmp']:
-                direction = self.rules[rule_menu].get('direction')
-                cleaned_data['direction'] = direction
+            self._apply_rule_menu(cleaned_data, rule_menu)
+
+    def clean(self):
+        cleaned_data = super(AddRule, self).clean()
+
+        self._clean_rule_menu(cleaned_data)
 
         # NOTE(amotoki): There are two cases where cleaned_data['direction']
         # is empty: (1) Nova Security Group is used. Since "direction" is
@@ -345,13 +364,14 @@ class AddRule(forms.SelfHandlingForm):
         if not cleaned_data['direction']:
             cleaned_data['direction'] = 'ingress'
 
+        remote = cleaned_data.get("remote")
         if remote == "cidr":
-            update_cleaned_data('security_group', None)
+            self._update_and_pop_error(cleaned_data, 'security_group', None)
         else:
-            update_cleaned_data('cidr', None)
+            self._update_and_pop_error(cleaned_data, 'cidr', None)
 
-        # If cleaned_data does not contain cidr, cidr is already marked
-        # as invalid, so skip the further validation for cidr.
+        # If cleaned_data does not contain a non-empty value, IPField already
+        # has validated it, so skip the further validation for cidr.
         # In addition cleaned_data['cidr'] is None means source_group is used.
         if 'cidr' in cleaned_data and cleaned_data['cidr'] is not None:
             cidr = cleaned_data['cidr']

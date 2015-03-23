@@ -57,7 +57,7 @@ class SelectPluginAction(workflows.Action):
         for plugin in plugins:
             field_name = plugin.name + "_version"
             choice_field = forms.ChoiceField(
-                label=_("Hadoop version"),
+                label=_("Version"),
                 choices=[(version, version) for version in plugin.versions],
                 widget=forms.Select(
                     attrs={"class": "plugin_version_choice "
@@ -65,7 +65,7 @@ class SelectPluginAction(workflows.Action):
             )
             self.fields[field_name] = choice_field
 
-    class Meta:
+    class Meta(object):
         name = _("Select plugin and hadoop version for cluster template")
         help_text_template = ("project/data_processing.cluster_templates/"
                               "_create_general_help.html")
@@ -78,7 +78,7 @@ class SelectPlugin(workflows.Step):
 class CreateClusterTemplate(workflows.Workflow):
     slug = "create_cluster_template"
     name = _("Create Cluster Template")
-    finalize_button_name = _("Create")
+    finalize_button_name = _("Next")
     success_message = _("Created")
     failure_message = _("Could not create")
     success_url = "horizon:project:data_processing.cluster_templates:index"
@@ -98,7 +98,7 @@ class GeneralConfigAction(workflows.Action):
 
     description = forms.CharField(label=_("Description"),
                                   required=False,
-                                  widget=forms.Textarea)
+                                  widget=forms.Textarea(attrs={'rows': 4}))
 
     anti_affinity = aa.anti_affinity_field()
 
@@ -134,7 +134,7 @@ class GeneralConfigAction(workflows.Action):
             self._errors = dict()
         return cleaned_data
 
-    class Meta:
+    class Meta(object):
         name = _("Details")
         help_text_template = ("project/data_processing.cluster_templates/"
                               "_configure_general_help.html")
@@ -166,29 +166,39 @@ class ConfigureNodegroupsAction(workflows.Action):
         super(ConfigureNodegroupsAction, self). \
             __init__(request, *args, **kwargs)
 
-        plugin, hadoop_version = whelpers.\
-            get_plugin_and_hadoop_version(request)
+        plugin = request.REQUEST.get("plugin_name")
+        version = request.REQUEST.get("hadoop_version")
+        if plugin and not version:
+            version_name = plugin + "_version"
+            version = request.REQUEST.get(version_name)
 
-        self.templates = saharaclient.nodegroup_template_find(request,
-            plugin_name=plugin,
-            hadoop_version=hadoop_version)
+        if not plugin or not version:
+            self.templates = saharaclient.nodegroup_template_find(request)
+        else:
+            self.templates = saharaclient.nodegroup_template_find(
+                request, plugin_name=plugin, hadoop_version=version)
 
         deletable = request.REQUEST.get("deletable", dict())
 
+        request_source = None
         if 'forms_ids' in request.POST:
+                request_source = request.POST
+        elif 'forms_ids' in request.REQUEST:
+                request_source = request.REQUEST
+        if request_source:
             self.groups = []
-            for id in json.loads(request.POST['forms_ids']):
+            for id in json.loads(request_source['forms_ids']):
                 group_name = "group_name_" + str(id)
                 template_id = "template_id_" + str(id)
                 count = "count_" + str(id)
                 serialized = "serialized_" + str(id)
-                self.groups.append({"name": request.POST[group_name],
-                                    "template_id": request.POST[template_id],
-                                    "count": request.POST[count],
+                self.groups.append({"name": request_source[group_name],
+                                    "template_id": request_source[template_id],
+                                    "count": request_source[count],
                                     "id": id,
                                     "deletable": deletable.get(
-                                        request.POST[group_name], "true"),
-                                    "serialized": request.POST[serialized]})
+                                        request_source[group_name], "true"),
+                                    "serialized": request_source[serialized]})
 
                 whelpers.build_node_group_fields(self,
                                                  group_name,
@@ -203,7 +213,7 @@ class ConfigureNodegroupsAction(workflows.Action):
             self._errors = dict()
         return cleaned_data
 
-    class Meta:
+    class Meta(object):
         name = _("Node Groups")
 
 
@@ -234,7 +244,6 @@ class ConfigureClusterTemplate(whelpers.ServiceParametersWorkflow,
         ConfigureClusterTemplate._cls_registry = set([])
 
         hlps = helpers.Helpers(request)
-
         plugin, hadoop_version = whelpers.\
             get_plugin_and_hadoop_version(request)
         general_parameters = hlps.get_cluster_general_configs(
@@ -301,6 +310,13 @@ class ConfigureClusterTemplate(whelpers.ServiceParametersWorkflow,
                 node_groups,
                 context["anti_affinity_info"],
             )
+
+            hlps = helpers.Helpers(request)
+            if hlps.is_from_guide():
+                request.session["guide_cluster_template_name"] = (
+                    context["general_cluster_template_name"])
+                self.success_url = (
+                    "horizon:project:data_processing.wizard:cluster_guide")
             return True
         except api_base.APIException as e:
             self.error_description = str(e)

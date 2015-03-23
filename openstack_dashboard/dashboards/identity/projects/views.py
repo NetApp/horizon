@@ -18,6 +18,7 @@
 
 from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext_lazy as _
+from django.views import generic
 
 from horizon import exceptions
 from horizon import messages
@@ -67,6 +68,7 @@ class TenantContextMixin(object):
 class IndexView(tables.DataTableView):
     table_class = project_tables.TenantsTable
     template_name = 'identity/projects/index.html'
+    page_title = _("Projects")
 
     def has_more_data(self, table):
         return self._more
@@ -115,6 +117,7 @@ class ProjectUsageView(usage.UsageView):
     template_name = 'identity/projects/usage.html'
     csv_response_class = project_views.ProjectUsageCsvRenderer
     csv_template_name = 'project/overview/usage.csv'
+    page_title = _("Project Usage")
 
     def get_data(self):
         super(ProjectUsageView, self).get_data()
@@ -150,14 +153,14 @@ class CreateProjectView(workflows.WorkflowView):
             except Exception:
                 error_msg = _('Unable to retrieve default Neutron quota '
                               'values.')
-                self.add_error_to_step(error_msg, 'update_quotas')
+                self.add_error_to_step(error_msg, 'create_quotas')
 
             for field in quotas.QUOTA_FIELDS:
                 initial[field] = quota_defaults.get(field).limit
 
         except Exception:
             error_msg = _('Unable to retrieve default quota values.')
-            self.add_error_to_step(error_msg, 'update_quotas')
+            self.add_error_to_step(error_msg, 'create_quotas')
 
         return initial
 
@@ -186,16 +189,16 @@ class UpdateProjectView(workflows.WorkflowView):
                     initial["domain_name"] = domain.name
                 except Exception:
                     exceptions.handle(self.request,
-                        _('Unable to retrieve project domain.'),
-                        redirect=reverse(INDEX_URL))
+                                      _('Unable to retrieve project domain.'),
+                                      redirect=reverse(INDEX_URL))
 
             # get initial project quota
             quota_data = quotas.get_tenant_quota_data(self.request,
                                                       tenant_id=project_id)
             if api.base.is_service_enabled(self.request, 'network') and \
                     api.neutron.is_quotas_extension_supported(self.request):
-                quota_data += api.neutron.tenant_quota_get(self.request,
-                                                          tenant_id=project_id)
+                quota_data += api.neutron.tenant_quota_get(
+                    self.request, tenant_id=project_id)
             for field in quotas.QUOTA_FIELDS:
                 initial[field] = quota_data.get(field).limit
         except Exception:
@@ -203,3 +206,28 @@ class UpdateProjectView(workflows.WorkflowView):
                               _('Unable to retrieve project details.'),
                               redirect=reverse(INDEX_URL))
         return initial
+
+
+class DetailProjectView(generic.TemplateView):
+    template_name = 'identity/projects/detail.html'
+
+    def get_context_data(self, **kwargs):
+        context = super(DetailProjectView, self).get_context_data(**kwargs)
+        project = self.get_data()
+        table = project_tables.TenantsTable(self.request)
+        context["project"] = project
+        context["page_title"] = _("Project Details: %s") % project.name
+        context["url"] = reverse(INDEX_URL)
+        context["actions"] = table.render_row_actions(project)
+        return context
+
+    @memoized.memoized_method
+    def get_data(self):
+        try:
+            project_id = self.kwargs['project_id']
+            project = api.keystone.tenant_get(self.request, project_id)
+        except Exception:
+            exceptions.handle(self.request,
+                              _('Unable to retrieve project details.'),
+                              redirect=reverse(INDEX_URL))
+        return project

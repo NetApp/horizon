@@ -11,8 +11,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-#
-# @author: KC Wang, Big Switch Networks
 
 from django.utils.translation import ugettext_lazy as _
 
@@ -71,7 +69,7 @@ class AddRuleAction(workflows.Action):
     def __init__(self, request, *args, **kwargs):
         super(AddRuleAction, self).__init__(request, *args, **kwargs)
 
-    class Meta:
+    class Meta(object):
         name = _("AddRule")
         permissions = ('openstack.services.network',)
         help_text = _("Create a firewall rule.\n\n"
@@ -135,7 +133,7 @@ class SelectRulesAction(workflows.Action):
         widget=forms.CheckboxSelectMultiple(),
         help_text=_("Create a policy with selected rules."))
 
-    class Meta:
+    class Meta(object):
         name = _("Rules")
         permissions = ('openstack.services.network',)
         help_text = _("Select rules for your policy.")
@@ -143,12 +141,10 @@ class SelectRulesAction(workflows.Action):
     def populate_rule_choices(self, request, context):
         try:
             tenant_id = self.request.user.tenant_id
-            rules = api.fwaas.rule_list(request, tenant_id=tenant_id)
-            for r in rules:
-                r.set_id_as_name_if_empty()
+            rules = api.fwaas.rule_list_for_tenant(request, tenant_id)
             rules = sorted(rules,
-                           key=lambda rule: rule.name)
-            rule_list = [(rule.id, rule.name) for rule in rules
+                           key=lambda rule: rule.name_or_id)
+            rule_list = [(rule.id, rule.name_or_id) for rule in rules
                          if not rule.firewall_policy_id]
         except Exception as e:
             rule_list = []
@@ -188,7 +184,7 @@ class AddPolicyAction(workflows.Action):
     def __init__(self, request, *args, **kwargs):
         super(AddPolicyAction, self).__init__(request, *args, **kwargs)
 
-    class Meta:
+    class Meta(object):
         name = _("AddPolicy")
         permissions = ('openstack.services.network',)
         help_text = _("Create a firewall policy with an ordered list "
@@ -240,8 +236,8 @@ class AddFirewallAction(workflows.Action):
     shared = forms.BooleanField(label=_("Shared"),
                                 initial=False,
                                 required=False)
-    # TODO(amotoki): make UP/DOWN translatable
-    admin_state_up = forms.ChoiceField(choices=[(True, 'UP'), (False, 'DOWN')],
+    admin_state_up = forms.ChoiceField(choices=[(True, _('UP')),
+                                                (False, _('DOWN'))],
                                        label=_("Admin State"))
 
     def __init__(self, request, *args, **kwargs):
@@ -250,7 +246,7 @@ class AddFirewallAction(workflows.Action):
         firewall_policy_id_choices = [('', _("Select a Policy"))]
         try:
             tenant_id = self.request.user.tenant_id
-            policies = api.fwaas.policy_list(request, tenant_id=tenant_id)
+            policies = api.fwaas.policy_list_for_tenant(request, tenant_id)
             policies = sorted(policies, key=lambda policy: policy.name)
         except Exception as e:
             exceptions.handle(
@@ -259,14 +255,13 @@ class AddFirewallAction(workflows.Action):
                     'error': str(e)})
             policies = []
         for p in policies:
-            p.set_id_as_name_if_empty()
-            firewall_policy_id_choices.append((p.id, p.name))
+            firewall_policy_id_choices.append((p.id, p.name_or_id))
         self.fields['firewall_policy_id'].choices = firewall_policy_id_choices
         # only admin can set 'shared' attribute to True
         if not request.user.is_superuser:
             self.fields['shared'].widget.attrs['disabled'] = 'disabled'
 
-    class Meta:
+    class Meta(object):
         name = _("AddFirewall")
         permissions = ('openstack.services.network',)
         help_text = _("Create a firewall based on a policy.\n\n"

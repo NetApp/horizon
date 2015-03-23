@@ -31,7 +31,7 @@ from openstack_dashboard.dashboards.project.containers \
 
 class CreateBackupForm(forms.SelfHandlingForm):
     name = forms.CharField(max_length=255, label=_("Backup Name"))
-    description = forms.CharField(widget=forms.Textarea,
+    description = forms.CharField(widget=forms.Textarea(attrs={'rows': 4}),
                                   label=_("Description"),
                                   required=False)
     container_name = forms.CharField(
@@ -62,7 +62,6 @@ class CreateBackupForm(forms.SelfHandlingForm):
             exceptions.handle(request,
                               _('Unable to create volume backup.'),
                               redirect=redirect)
-            return False
 
 
 class RestoreBackupForm(forms.SelfHandlingForm):
@@ -106,5 +105,5 @@ class RestoreBackupForm(forms.SelfHandlingForm):
             return restore
         except Exception:
             msg = _('Unable to restore backup.')
-            exceptions.handle(request, msg)
-            return False
+            redirect = reverse('horizon:project:volumes:index')
+            exceptions.handle(request, msg, redirect=redirect)

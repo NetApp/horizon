@@ -16,8 +16,10 @@ import logging
 
 from django.conf import settings
 from django.core.urlresolvers import reverse
+from django.template import defaultfilters as filters
 from django.utils.http import urlencode
 from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ungettext_lazy
 
 from keystoneclient import exceptions
 
@@ -34,7 +36,7 @@ LOG = logging.getLogger(__name__)
 
 class UpdateUsersLink(tables.LinkAction):
     name = "users"
-    verbose_name = _("Modify Users")
+    verbose_name = _("Manage Members")
     url = "horizon:identity:domains:update"
     classes = ("ajax-modal",)
     policy_rules = (("identity", "identity:list_users"),
@@ -87,9 +89,23 @@ class EditDomainLink(tables.LinkAction):
 
 
 class DeleteDomainsAction(tables.DeleteAction):
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Delete Domain",
+            u"Delete Domains",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Deleted Domain",
+            u"Deleted Domains",
+            count
+        )
+
     name = "delete"
-    data_type_singular = _("Domain")
-    data_type_plural = _("Domains")
     policy_rules = (('identity', 'identity:delete_domain'),)
 
     def allowed(self, request, datum):
@@ -153,8 +169,8 @@ class SetDomainContext(tables.Action):
                 request.session['domain_context'] = obj_id
                 request.session['domain_context_name'] = domain.name
                 messages.success(request,
-                                _('Domain Context updated to Domain %s.') %
-                                domain.name)
+                                 _('Domain Context updated to Domain %s.') %
+                                 domain.name)
             except Exception:
                 messages.error(request,
                                _('Unable to set Domain Context.'))
@@ -184,9 +200,10 @@ class DomainsTable(tables.DataTable):
     description = tables.Column(lambda obj: getattr(obj, 'description', None),
                                 verbose_name=_('Description'))
     id = tables.Column('id', verbose_name=_('Domain ID'))
-    enabled = tables.Column('enabled', verbose_name=_('Enabled'), status=True)
+    enabled = tables.Column('enabled', verbose_name=_('Enabled'), status=True,
+                            filters=(filters.yesno, filters.capfirst))
 
-    class Meta:
+    class Meta(object):
         name = "domains"
         verbose_name = _("Domains")
         row_actions = (SetDomainContext, UpdateUsersLink, UpdateGroupsLink,

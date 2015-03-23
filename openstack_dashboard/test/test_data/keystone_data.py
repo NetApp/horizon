@@ -60,6 +60,18 @@ SERVICE_CATALOG = [
           "adminURL": "http://admin.nova.example.com:8776/v1",
           "internalURL": "http://int.nova.example.com:8776/v1",
           "publicURL": "http://public.nova.example.com:8776/v1"}]},
+    {"type": "volumev2",
+     "name": "cinderv2",
+     "endpoints_links": [],
+     "endpoints": [
+         {"region": "RegionOne",
+          "adminURL": "http://admin.nova.example.com:8776/v2",
+          "internalURL": "http://int.nova.example.com:8776/v2",
+          "publicURL": "http://public.nova.example.com:8776/v2"},
+         {"region": "RegionTwo",
+          "adminURL": "http://admin.nova.example.com:8776/v2",
+          "internalURL": "http://int.nova.example.com:8776/v2",
+          "publicURL": "http://public.nova.example.com:8776/v2"}]},
     {"type": "image",
      "name": "glance",
      "endpoints_links": [],
@@ -129,9 +141,9 @@ SERVICE_CATALOG = [
      "endpoints_links": [],
      "endpoints": [
          {"region": "RegionOne",
-          "adminURL": "http://admin.manila.example.com:8776/v1.0",
-          "publicURL": "http://public.manila.example.com:8776/v1.0",
-          "internalURL": "http://int.manila.example.com:8776/v1.0"}]},
+          "adminURL": "http://admin.manila.example.com:8786/v1.0",
+          "publicURL": "http://public.manila.example.com:8786/v1.0",
+          "internalURL": "http://int.manila.example.com:8786/v1.0"}]},
     {"type": "data_processing",
      "name": "Sahara",
      "endpoints_links": [],
@@ -229,28 +241,28 @@ def data(TEST):
     TEST.user.service_catalog = copy.deepcopy(SERVICE_CATALOG)
 
     group_dict = {'id': "1",
-                 'name': 'group_one',
-                 'description': 'group one description',
-                 'project_id': '1',
-                 'domain_id': '1'}
+                  'name': 'group_one',
+                  'description': 'group one description',
+                  'project_id': '1',
+                  'domain_id': '1'}
     group = groups.Group(groups.GroupManager(None), group_dict)
     group_dict = {'id': "2",
-                 'name': 'group_two',
-                 'description': 'group two description',
-                 'project_id': '1',
-                 'domain_id': '1'}
+                  'name': 'group_two',
+                  'description': 'group two description',
+                  'project_id': '1',
+                  'domain_id': '1'}
     group2 = groups.Group(groups.GroupManager(None), group_dict)
     group_dict = {'id': "3",
-                 'name': 'group_three',
-                 'description': 'group three description',
-                 'project_id': '1',
-                 'domain_id': '1'}
+                  'name': 'group_three',
+                  'description': 'group three description',
+                  'project_id': '1',
+                  'domain_id': '1'}
     group3 = groups.Group(groups.GroupManager(None), group_dict)
     group_dict = {'id': "4",
-                 'name': 'group_four',
-                 'description': 'group four description',
-                 'project_id': '2',
-                 'domain_id': '2'}
+                  'name': 'group_four',
+                  'description': 'group four description',
+                  'project_id': '2',
+                  'domain_id': '2'}
     group4 = groups.Group(groups.GroupManager(None), group_dict)
     TEST.groups.add(group, group2, group3, group4)
 
@@ -372,5 +384,6 @@ def data(TEST):
     TEST.tokens.unscoped_token = unscoped_token
 
     access_secret = ec2.EC2(ec2.CredentialsManager, {"access": "access",
-                                                     "secret": "secret"})
+                                                     "secret": "secret",
+                                                     "tenant_id": tenant.id})
     TEST.ec2.add(access_secret)

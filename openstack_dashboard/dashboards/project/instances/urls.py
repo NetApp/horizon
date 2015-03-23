@@ -27,13 +27,16 @@ INSTANCES_KEYPAIR = r'^(?P<instance_id>[^/]+)/(?P<keypair_name>[^/]+)/%s$'
 VIEW_MOD = 'openstack_dashboard.dashboards.project.instances.views'
 
 
-urlpatterns = patterns(VIEW_MOD,
+urlpatterns = patterns(
+    VIEW_MOD,
     url(r'^$', views.IndexView.as_view(), name='index'),
     url(r'^launch$', views.LaunchInstanceView.as_view(), name='launch'),
     url(r'^(?P<instance_id>[^/]+)/$',
         views.DetailView.as_view(), name='detail'),
     url(INSTANCES % 'update', views.UpdateView.as_view(), name='update'),
     url(INSTANCES % 'rebuild', views.RebuildView.as_view(), name='rebuild'),
+    url(INSTANCES % 'serial', views.SerialConsoleView.as_view(),
+        name='serial'),
     url(INSTANCES % 'console', 'console', name='console'),
     url(INSTANCES % 'vnc', 'vnc', name='vnc'),
     url(INSTANCES % 'spice', 'spice', name='spice'),

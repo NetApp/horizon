@@ -10,8 +10,11 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import decimal
 import math
 import re
+
+from oslo_utils import units
 
 from django.conf import settings
 from django.contrib.auth import logout  # noqa
@@ -31,7 +34,7 @@ lazy_join = lazy(_lazy_join, unicode)
 def bytes_to_gigabytes(bytes):
     # Converts the number of bytes to the next highest number of Gigabytes
     # For example 5000000 (5 Meg) would return '1'
-    return int(math.ceil(float(bytes) / 1024 ** 3))
+    return int(math.ceil(float(bytes) / units.Gi))
 
 
 def add_logout_reason(request, response, reason):
@@ -42,15 +45,18 @@ def add_logout_reason(request, response, reason):
         response.set_cookie('logout_reason', reason, max_age=10)
 
 
-def logout_with_message(request, msg):
+def logout_with_message(request, msg, redirect=True):
     """Send HttpResponseRedirect to LOGOUT_URL.
 
     `msg` is a message displayed on the login page after the logout, to explain
     the logout reason.
     """
     logout(request)
-    response = http.HttpResponseRedirect(
-        '%s?next=%s' % (settings.LOGOUT_URL, request.path))
+    if redirect:
+        response = http.HttpResponseRedirect(
+            '%s?next=%s' % (settings.LOGOUT_URL, request.path))
+    else:
+        response = http.HttpResponseRedirect(settings.LOGOUT_URL)
     add_logout_reason(request, response, msg)
     return response
 
@@ -69,6 +75,73 @@ def get_page_size(request, default=20):
     return page_size
 
 
+def get_log_length(request, default=35):
+    session = request.session
+    cookies = request.COOKIES
+    try:
+        log_length = int(session.get(
+            'instance_log_length',
+            cookies.get('instance_log_length',
+                        getattr(settings,
+                                'INSTANCE_LOG_LENGTH',
+                                default))))
+    except ValueError:
+        log_length = session['instance_log_length'] = int(default)
+    return log_length
+
+
 def natural_sort(attr):
     return lambda x: [int(s) if s.isdigit() else s for s in
                       re.split(r'(\d+)', getattr(x, attr, x))]
+
+
+def get_keys(tuple_of_tuples):
+    """Processes a tuple of 2-element tuples and returns a tuple containing
+    first component of each tuple.
+    """
+    return tuple([t[0] for t in tuple_of_tuples])
+
+
+def value_for_key(tuple_of_tuples, key):
+    """Processes a tuple of 2-element tuples and returns the value
+    corresponding to the given key. If not value is found, the key is returned.
+    """
+    for t in tuple_of_tuples:
+        if t[0] == key:
+            return t[1]
+    else:
+        return key
+
+
+def next_key(tuple_of_tuples, key):
+    """Processes a tuple of 2-element tuples and returns the key which comes
+    after the given key.
+    """
+    for i, t in enumerate(tuple_of_tuples):
+        if t[0] == key:
+            try:
+                return tuple_of_tuples[i + 1][0]
+            except IndexError:
+                return None
+
+
+def previous_key(tuple_of_tuples, key):
+    """Processes a tuple of 2-element tuples and returns the key which comes
+    before the given key.
+    """
+    for i, t in enumerate(tuple_of_tuples):
+        if t[0] == key:
+            try:
+                return tuple_of_tuples[i - 1][0]
+            except IndexError:
+                return None
+
+
+def format_value(value):
+    """Returns the given value rounded to one decimal place if it is a
+    decimal, or integer if it is an integer.
+    """
+    value = decimal.Decimal(str(value))
+    if int(value) == value:
+        return int(value)
+    return round(value, 1)

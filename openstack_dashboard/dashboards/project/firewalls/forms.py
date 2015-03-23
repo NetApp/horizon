@@ -11,8 +11,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-#
-# @author: KC Wang
 
 import logging
 
@@ -38,9 +36,12 @@ class UpdateRule(forms.SelfHandlingForm):
         max_length=80, label=_("Description"))
     protocol = forms.ChoiceField(
         label=_("Protocol"), required=False,
+        choices=[('TCP', _('TCP')), ('UDP', _('UDP')), ('ICMP', _('ICMP')),
+                 ('ANY', _('ANY'))],
         help_text=_('Protocol for the firewall rule'))
     action = forms.ChoiceField(
         label=_("Action"), required=False,
+        choices=[('ALLOW', _('ALLOW')), ('DENY', _('DENY'))],
         help_text=_('Action for the firewall rule'))
     source_ip_address = forms.IPField(
         label=_("Source IP Address/Subnet"),
@@ -69,26 +70,6 @@ class UpdateRule(forms.SelfHandlingForm):
     enabled = forms.BooleanField(label=_("Enabled"), required=False)
 
     failure_url = 'horizon:project:firewalls:index'
-
-    def __init__(self, request, *args, **kwargs):
-        super(UpdateRule, self).__init__(request, *args, **kwargs)
-
-        protocol = kwargs['initial']['protocol']
-        protocol = protocol.upper() if protocol else 'ANY'
-        action = kwargs['initial']['action'].upper()
-
-        protocol_choices = [(protocol, protocol)]
-        for tup in [('TCP', _('TCP')), ('UDP', _('UDP')), ('ICMP', _('ICMP')),
-                    ('ANY', _('ANY'))]:
-            if tup[0] != protocol:
-                protocol_choices.append(tup)
-        self.fields['protocol'].choices = protocol_choices
-
-        action_choices = [(action, action)]
-        for tup in [('ALLOW', _('ALLOW')), ('DENY', _('DENY'))]:
-            if tup[0] != action:
-                action_choices.append(tup)
-        self.fields['action'].choices = action_choices
 
     def handle(self, request, context):
         rule_id = self.initial['rule_id']
@@ -147,8 +128,8 @@ class UpdateFirewall(forms.SelfHandlingForm):
                                   label=_("Description"),
                                   required=False)
     firewall_policy_id = forms.ChoiceField(label=_("Policy"))
-    # TODO(amotoki): make UP/DOWN translatable
-    admin_state_up = forms.ChoiceField(choices=[(True, 'UP'), (False, 'DOWN')],
+    admin_state_up = forms.ChoiceField(choices=[(True, _('UP')),
+                                                (False, _('DOWN'))],
                                        label=_("Admin State"))
 
     failure_url = 'horizon:project:firewalls:index'
@@ -158,7 +139,7 @@ class UpdateFirewall(forms.SelfHandlingForm):
 
         try:
             tenant_id = self.request.user.tenant_id
-            policies = api.fwaas.policy_list(request, tenant_id=tenant_id)
+            policies = api.fwaas.policy_list_for_tenant(request, tenant_id)
             policies = sorted(policies, key=lambda policy: policy.name)
         except Exception:
             exceptions.handle(request,
@@ -171,8 +152,7 @@ class UpdateFirewall(forms.SelfHandlingForm):
         firewall_policy_id_choices = [(policy_id, policy_name)]
         for p in policies:
             if p.id != policy_id:
-                p.set_id_as_name_if_empty()
-                firewall_policy_id_choices.append((p.id, p.name))
+                firewall_policy_id_choices.append((p.id, p.name_or_id))
 
         self.fields['firewall_policy_id'].choices = firewall_policy_id_choices
 
@@ -207,12 +187,10 @@ class InsertRuleToPolicy(forms.SelfHandlingForm):
     def __init__(self, request, *args, **kwargs):
         super(InsertRuleToPolicy, self).__init__(request, *args, **kwargs)
 
-        tenant_id = self.request.user.tenant_id
         try:
-            all_rules = api.fwaas.rule_list(request, tenant_id=tenant_id)
-            for r in all_rules:
-                r.set_id_as_name_if_empty()
-            all_rules = sorted(all_rules, key=lambda rule: rule.name)
+            tenant_id = self.request.user.tenant_id
+            all_rules = api.fwaas.rule_list_for_tenant(request, tenant_id)
+            all_rules = sorted(all_rules, key=lambda rule: rule.name_or_id)
 
             available_rules = [r for r in all_rules
                                if not r.firewall_policy_id]
@@ -222,8 +200,8 @@ class InsertRuleToPolicy(forms.SelfHandlingForm):
                 r_obj = [rule for rule in all_rules if r == rule.id][0]
                 current_rules.append(r_obj)
 
-            available_choices = [(r.id, r.name) for r in available_rules]
-            current_choices = [(r.id, r.name) for r in current_rules]
+            available_choices = [(r.id, r.name_or_id) for r in available_rules]
+            current_choices = [(r.id, r.name_or_id) for r in current_rules]
 
         except Exception as e:
             msg = _('Failed to retrieve available rules: %s') % e
@@ -268,18 +246,16 @@ class RemoveRuleFromPolicy(forms.SelfHandlingForm):
     def __init__(self, request, *args, **kwargs):
         super(RemoveRuleFromPolicy, self).__init__(request, *args, **kwargs)
 
-        tenant_id = request.user.tenant_id
         try:
-            all_rules = api.fwaas.rule_list(request, tenant_id=tenant_id)
-            for r in all_rules:
-                r.set_id_as_name_if_empty()
+            tenant_id = request.user.tenant_id
+            all_rules = api.fwaas.rule_list_for_tenant(request, tenant_id)
 
             current_rules = []
             for r in kwargs['initial']['firewall_rules']:
                 r_obj = [rule for rule in all_rules if r == rule.id][0]
                 current_rules.append(r_obj)
 
-            current_choices = [(r.id, r.name) for r in current_rules]
+            current_choices = [(r.id, r.name_or_id) for r in current_rules]
         except Exception as e:
             msg = _('Failed to retrieve current rules in policy %(name)s: '
                     '%(reason)s') % {'name': self.initial['name'], 'reason': e}

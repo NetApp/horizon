@@ -117,7 +117,7 @@ Panels
 
 To create a new panel, run the following::
 
-    ./run_tests -m startpanel <panel_name> --dashboard=<dashboard_path>
+    ./run_tests -m startpanel <panel_name>
 
 This will create a directory with the given panel name, and ``panel.py``
 module with the basic panel code filled in, and various other common
@@ -125,8 +125,10 @@ module with the basic panel code filled in, and various other common
 
 Available options:
 
-* ``-d``, ``--dashboard``: The dotted python path to your dashboard app (the module
-  which containers the ``dashboard.py`` file.).
+* ``-d``, ``--dashboard``: The dotted python path to your dashboard app (the
+  module which containers the ``dashboard.py`` file.). If not specified, the
+  target dashboard should be specified in a pluggable settings file for the
+  panel.
 * ``--target``: the directory in which the panel files should be created.
   If the value is ``auto`` the panel will be created as a new directory inside
   the dashboard module's directory structure. Default: A new directory within
@@ -253,9 +255,9 @@ The environment backup is stored in ``/tmp/.horizon_environment/``.
 Environment Versioning
 ======================
 
-Horizon keeps track of changes to the environment by incrementing an
-``environment_version`` integer at the top of ``run_tests.sh``.
-
-If you do anything which changes the environment (adding new dependencies
-or renaming directories are both great examples) be sure to increment the
-``environment_version`` counter as well.
+Horizon keeps track of changes to the environment by comparing the
+current requirements files (``requirements.txt`` and
+``test-requirements.txt``) and the files last time the virtual
+environment was created or updated. If there is any difference,
+the virtual environment will be update automatically when you run
+``run_tests.sh``.

@@ -48,7 +48,7 @@ class IndexView(r_views.IndexView, n_views.IndexView):
                 tenant = tenant_dict.get(r.tenant_id, None)
                 r.tenant_name = getattr(tenant, 'name', None)
                 # If name is empty use UUID as name
-                r.set_id_as_name_if_empty()
+                r.name = r.name_or_id
                 # Set external network name
                 self._set_external_network(r, ext_net_dict)
         return routers
@@ -66,5 +66,6 @@ class DetailView(r_views.DetailView):
 
 class UpdateView(r_views.UpdateView):
     form_class = rforms.UpdateForm
-    template_name = 'admin/routers/update.html'
+    template_name = 'project/routers/update.html'
     success_url = reverse_lazy("horizon:admin:routers:index")
+    submit_url = "horizon:admin:routers:update"

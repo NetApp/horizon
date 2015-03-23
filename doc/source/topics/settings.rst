@@ -1,6 +1,6 @@
-==================================
-Horizon Settings and Configuration
-==================================
+==========================
+Settings and Configuration
+==========================
 
 Introduction
 ============
@@ -42,30 +42,60 @@ behavior of your Horizon installation. All of them are contained in the
 ``dashboards``
 --------------
 
+.. warning::
+
+   In OpenStack Dashboard configuration, we suggest **NOT** to use this
+   setting. Please specify the order of dashboard using the
+   :ref:`pluggable-settings-label`.
+
+   Both the pluggable dashboard mechanism (OpenStack Dashboard default) and
+   this setting ``dashboard`` configure the order of dashboards and
+   the setting ``dashboard`` precedes the pluggable dashboard mechanism.
+   Specifying the order in two places may cause confusion.
+   Please use this parameter only when the pluggable config is not used.
+
 .. versionadded:: 2012.1(Essex)
 
 Default: ``None``
 
 Horizon Dashboards are automatically discovered in the following way:
 
+* By adding a configuration file to the ``openstack_dashboard/local/enabled``
+  directory (for more information see :ref:`pluggable-settings-label`).
+  This is the default way in OpenStack Dashboard.
 * By traversing Django's list of
   `INSTALLED_APPS <https://docs.djangoproject.com/en/1.4/ref/settings/#std:setting-INSTALLED_APPS>`_
   and importing any files that have the name ``"dashboard.py"`` and include
   code to register themselves as a Horizon dashboard.
-* By adding a configuration file to the ``openstack_dashboard/local/enabled``
-  directory (for more information see :ref:`pluggable-settings-label`).
 
-By default, these dashboards are ordered alphabetically.
-However, if a list of dashboard slugs is provided in this setting, the supplied
+By default, dashboards defined by ``openstack_dashboard/local/enabled`` are
+displayed first in the alphabetical order of the config files, and then the
+remaining dashboards discovered by traversing INSTALLED_APPS are displayed
+in the alphabetical order.
+
+If a list of ``dashboard`` slugs is provided in this setting, the supplied
 ordering is applied to the list of discovered dashboards. If the list of
 dashboard slugs is shorter than the number of discovered dashboards, the
-remaining dashboards are appended in alphabetical order.
+remaining dashboards are appended in the default order described above.
 
 The dashboards listed must be in a Python module which
 is included in the ``INSTALLED_APPS`` list and on the Python path.
 
 ``default_dashboard``
 ---------------------
+
+.. warning::
+
+   In OpenStack Dashboard configuration, we suggest **NOT** to use this
+   setting. Please specify the order of dashboard using the
+   :ref:`pluggable-settings-label`.
+
+   The default dashboard can be configured via both the pluggable
+   dashboard mechanism (OpenStack Dashboard default) and this setting
+   ``default_dashboard``, and if both are specified, the setting
+   by the pluggable dashboard mechanism will be used.
+   Specifying the default dashboard in two places may cause confusion.
+   Please use this parameter only when the pluggable config is not used.
 
 .. versionadded:: 2012.1(Essex)
 
@@ -106,6 +136,17 @@ Default: ``2500``
 How frequently resources in transition states should be polled for updates,
 expressed in milliseconds.
 
+``auto_fade_alerts``
+--------------------
+
+.. versionadded:: 2013.2(Havana)
+
+Defaults: ``{'delay': [3000], 'fade_duration': [1500], 'types': []}``
+
+If provided, will auto-fade the alert types specified. Valid alert types
+include: ['alert-success', 'alert-info', 'alert-warning', 'alert-error']
+Can also define the delay before the alert fades and the fade out duration.
+
 ``help_url``
 ------------
 
@@ -127,6 +168,30 @@ A dictionary containing classes of exceptions which Horizon's centralized
 exception handling should be aware of. Based on these exception categories,
 Horizon will handle the exception and display a message to the user.
 
+``modal_backdrop``
+------------------
+
+.. versionadded:: 2014.2(Kilo)
+
+Default: ``"static"``
+
+Controls how bootstrap backdrop element outside of modals looks and feels.
+Valid values are ``"true"`` (show backdrop element outside the modal, close
+the modal after clicking on backdrop), ``"false"`` (do not show backdrop
+element, do not close the modal after clicking outside of it) and ``"static"``
+(show backdrop element outside the modal, do not close the modal after
+clicking on backdrop).
+
+``disable_password_reveal``
+---------------------------
+
+.. versionadded:: 2015.1(Kilo)
+
+Default: ``False``
+
+Setting this to True will disable the reveal button for password fields,
+including on the login form.
+
 ``password_validator``
 ----------------------
 
@@ -147,7 +212,7 @@ requires them.
 
 .. versionadded:: 2013.1(Grizzly)
 
-Default: ``"on"``
+Default: ``"off"``
 
 Controls whether browser autocompletion should be enabled on the login form.
 Valid values are ``"on"`` and ``"off"``.
@@ -190,10 +255,19 @@ are added as dependencies on the root Horizon application ``hz``.
 
 Default: ``[]``
 
-A list of javascript files to be included in the compressed set of files that are
+A list of javascript source files to be included in the compressed set of files that are
 loaded on every page. This is needed for AngularJS modules that are referenced in
 ``angular_modules`` and therefore need to be include in every page.
 
+``js_spec_files``
+-------------------------
+
+.. versionadded:: 2015.1(Kilo)
+
+Default: ``[]``
+
+A list of javascript spec files to include for integration with the Jasmine spec runner.
+Jasmine is a behavior-driven development framework for testing JavaScript code.
 
 OpenStack Settings (Partial)
 ============================
@@ -205,6 +279,18 @@ of specific dashboards, panels, API calls, etc.
 Most of the following settings are defined in
  ``openstack_dashboard/local/local_settings.py``, which should be copied from
  ``openstack_dashboard/local/local_settings.py.example``.
+
+``AUTHENTICATION_URLS``
+-----------------------
+
+.. versionadded:: 2015.1(Kilo)
+
+Default: ``['openstack_auth.urls']``
+
+A list of modules from which to collate authentication URLs from. The default
+option adds URLs from the django-openstack-auth module however others will be
+required for additional authentication mechanisms.
+
 
 ``API_RESULT_LIMIT``
 --------------------
@@ -227,6 +313,7 @@ Default: ``20``
 Similar to ``API_RESULT_LIMIT``. This setting controls the number of items
 to be shown per page if API pagination support for this exists.
 
+
 ``AVAILABLE_REGIONS``
 ---------------------
 
@@ -235,13 +322,42 @@ to be shown per page if API pagination support for this exists.
 Default: ``None``
 
 A tuple of tuples which define multiple regions. The tuple format is
-``('http://{{keystone_host}}:5000/v2.0', '{{region_name}}')``. If any regions
+``('http://{{ keystone_host }}:5000/v2.0', '{{ region_name }}')``. If any regions
 are specified the login form will have a dropdown selector for authenticating
 to the appropriate region, and there will be a region switcher dropdown in
 the site header when logged in.
 
 If you do not have multiple regions you should use the ``OPENSTACK_HOST`` and
 ``OPENSTACK_KEYSTONE_URL`` settings instead.
+
+
+``CONSOLE_TYPE``
+----------------
+
+.. versionadded:: 2013.2(Havana)
+
+Default:  ``"AUTO"``
+
+This setting specifies the type of in-browser console used to access the
+VMs.
+Valid values are  ``"AUTO"``(default), ``"VNC"``, ``"SPICE"``, ``"RDP"``,
+``"SERIAL"``, and ``None``.
+``None`` deactivates the in-browser console and is available in version
+2014.2(Juno).
+``"SERIAL"`` is available since 2005.1(Kilo).
+
+
+``INSTANCE_LOG_LENGTH``
+-----------------------
+
+.. versionadded:: 2015.1(Kilo)
+
+Default:  ``35``
+
+This setting enables you to change the default number of lines displayed for
+the log of an instance.
+Valid value must be a positive integer.
+
 
 ``CREATE_INSTANCE_FLAVOR_SORT``
 -------------------------------
@@ -253,8 +369,9 @@ Default: ``{'key':'ram'}``
 When launching a new instance the default flavor is sorted by RAM usage in
 ascending order.
 You can customize the sort order by: id, name, ram, disk and vcpus.
-Additionally, you can insert any custom callback function,
-see the description in local_settings.py.example for more information.
+Additionally, you can insert any custom callback function. You can also
+provide a flag for reverse sort.
+See the description in local_settings.py.example for more information.
 
 This example sorts flavors by vcpus in descending order::
 
@@ -263,6 +380,41 @@ This example sorts flavors by vcpus in descending order::
          'reverse': True,
     }
 
+``CUSTOM_THEME_PATH``
+---------------------
+
+.. versionadded:: 2015.1(Kilo)
+
+Default: ``"static/themes/default"``
+
+This setting allows Horizon to use a custom theme. The theme folder
+should contains one _variables.scss file and one _styles.scss file.
+_variables.scss contains all the bootstrap and horizon specific variables
+which are used to style the GUI. Whereas _styles.scss contains extra styling.
+For example themes, see: /horizon/openstack_dashboard/static/themes/
+
+``DROPDOWN_MAX_ITEMS``
+----------------------
+
+.. versionadded:: 2015.1(Kilo)
+
+Default: ``30``
+
+This setting sets the maximum number of items displayed in a dropdown.
+Dropdowns that limit based on this value need to support a way to observe
+the entire list.
+
+``ENFORCE_PASSWORD_CHECK``
+--------------------------
+
+.. versionadded:: 2015.1(Kilo)
+
+Default: ``False``
+
+This setting will display an 'Admin Password' field on the Change Password
+form to verify that it is indeed the admin logged-in who wants to change
+the password.
+
 ``IMAGES_LIST_FILTER_TENANTS``
 ------------------------------
 
@@ -270,8 +422,8 @@ This example sorts flavors by vcpus in descending order::
 
 Default: ``None``
 
-A list of dictionaries to add optional categories to the image filters
-in the Images & Snapshots panel, based on project ownership.
+A list of dictionaries to add optional categories to the image fixed filters
+in the Images panel, based on project ownership.
 
 Each dictionary should contain a `tenant` attribute with the project
 id, and optionally a `text` attribute specifying the category name, and
@@ -279,6 +431,12 @@ an `icon` attribute that displays an icon in the filter button. The
 icon names are based on the default icon theme provided by Bootstrap.
 
 Example: ``[{'text': 'Official', 'tenant': '27d0058849da47c896d205e2fc25a5e8', 'icon': 'icon-ok'}]``
+
+.. note::
+
+    Since the Kilo release, the Bootstrap icon library (e.g. 'icon-ok') has
+    been replaced with Font Awesome (e.g. 'fa-check').
+
 
 ``IMAGE_RESERVED_CUSTOM_PROPERTIES``
 ------------------------------------
@@ -293,6 +451,35 @@ Update Metadata tree.
 This setting can be used in the case where a separate panel is used for
 managing a custom property or if a certain custom property should never be
 edited.
+
+``OPENSTACK_API_VERSIONS``
+--------------------------
+
+.. versionadded:: 2013.2(Havana)
+
+Default::
+
+    {
+        "data-processing": 1.1,
+        "identity": 2.0,
+        "volume": 2
+    }
+
+Overrides for OpenStack API versions. Use this setting to force the
+OpenStack dashboard to use a specific API version for a given service API.
+
+.. note::
+
+    The version should be formatted as it appears in the URL for the
+    service API. For example, the identity service APIs have inconsistent
+    use of the decimal point, so valid options would be "2.0" or "3".
+    For example,
+    OPENSTACK_API_VERSIONS = {
+        "data-processing": 1.1,
+        "identity": 3,
+        "volume": 2
+    }
+
 
 ``OPENSTACK_ENABLE_PASSWORD_RETRIEVE``
 --------------------------------------
@@ -412,6 +599,7 @@ service tend to be particularly large - in the order of hundreds of megabytes
 to multiple gigabytes.
 
 .. note::
+
     This will not disable image creation altogether, as this setting does not
     affect images created by specifying an image location (URL) as the image source.
 
@@ -430,6 +618,17 @@ If Keystone has been configured to use LDAP as the auth backend then set
 ``can_edit_user`` and ``can_edit_project`` to ``False`` and name to ``"ldap"``.
 
 
+``OPENSTACK_KEYSTONE_DEFAULT_DOMAIN``
+-------------------------------------
+
+.. versionadded:: 2013.2(Havana)
+
+Default: ``"Default"``
+
+Overrides the default domain used when running on single-domain model
+with Keystone V3. All entities will be created in the default domain.
+
+
 ``OPENSTACK_KEYSTONE_DEFAULT_ROLE``
 -----------------------------------
 
@@ -439,6 +638,17 @@ Default: ``"_member_"``
 
 The name of the role which will be assigned to a user when added to a project.
 This name must correspond to a role name in Keystone.
+
+
+``OPENSTACK_KEYSTONE_MULTIDOMAIN_SUPPORT``
+------------------------------------------
+
+.. versionadded:: 2013.2(Havana)
+
+Default: ``False``
+
+Set this to True if running on multi-domain model. When this is enabled, it
+will require user to enter the Domain name in addition to username for login.
 
 
 ``OPENSTACK_KEYSTONE_URL``
@@ -481,7 +691,8 @@ Default::
             'enable_vpn': True,
             'profile_support': None,
             'supported_provider_types': ["*"],
-            'segmentation_id_range': None
+            'supported_vnic_types': ["*"],
+            'segmentation_id_range': {}
         }
 
 A dictionary of settings which can be used to enable optional services provided
@@ -534,45 +745,14 @@ option appropriately depending on your deployment.
 
 Default: ``True``
 
-Enables the load balancer panel. load balancer panel will be enabled
-when this option is True and your Neutron deployment supports
-LBaaS. If you want to disable load balancer panel even when your
-Neutron supports LBaaS, set it to False.
+Enables the load balancer panel. The load balancer panel will be enabled when
+this option is True and your Neutron deployment supports LBaaS. If you want
+to disable load balancer panel even when your Neutron supports LBaaS, set it to False.
 
-This option is now marked as "deprecated" and will be removed in
-Kilo or later release. The load balancer panel is now enabled only
-when LBaaS feature is available in Neutron and this option is no
-longer needed. We suggest not to use this option to disable the
+This option is now marked as "deprecated" and will be removed in Kilo or later release.
+The load balancer panel is now enabled only when LBaaS feature is available in Neutron
+and this option is no longer needed. We suggest not to use this option to disable the
 load balancer panel from now on.
-
-``supported_provider_types``:
-
-.. versionadded:: 2014.2(Juno)
-
-Default: ``["*"]``
-
-For use with the provider network extension. Use this to explicitly set which
-provider network types are supported. Only the network types in this list will
-be available to choose from when creating a network. Network types include
-local, flat, vlan, gre, and vxlan. By default all provider network types will
-be available to choose from.
-
-Example: ``['local', 'flat', 'gre']``
-
-``segmentation_id_range``:
-
-.. versionadded:: 2014.2(Juno)
-
-Default: ``None``
-
-For use with the provider network extension. This is a dictionary where each
-key is a provider network type and each value is a list containing two numbers.
-The first number is the minimum segmentation ID that is valid. The second
-number is the maximum segmentation ID. Pertains only to the vlan, gre, and
-vxlan network types. By default this option is not provided and each minimum
-and maximum value will be the default for the provider network type.
-
-Example: ``{'vlan': [1024, 2048], 'gre': [4094, 65536]}``
 
 ``enable_quotas``:
 
@@ -623,6 +803,49 @@ This option specifies a type of network port profile support. Currently the
 available value is either ``None`` or ``"cisco"``. ``None`` means to disable
 port profile support. ``cisco`` can be used with Neutron Cisco plugins.
 
+``supported_provider_types``:
+
+.. versionadded:: 2014.2(Juno)
+
+Default: ``["*"]``
+
+For use with the provider network extension. Use this to explicitly set which
+provider network types are supported. Only the network types in this list will
+be available to choose from when creating a network. Network types include
+local, flat, vlan, gre, and vxlan. By default all provider network types will
+be available to choose from.
+
+Example: ``['local', 'flat', 'gre']``
+
+``supported_vnic_types``:
+
+.. versionadded:: 2015.1(Kilo)
+
+Default ``['*']``
+
+For use with the port binding extension. Use this to explicitly set which VNIC
+types are supported; only those listed will be shown when creating or editing
+a port. VNIC types include normal, direct and macvtap. By default all VNIC
+types will be available to choose from.
+
+Example ``['normal', 'direct']``
+
+``segmentation_id_range``:
+
+.. versionadded:: 2014.2(Juno)
+
+Default: ``{}``
+
+For use with the provider network extension. This is a dictionary where each
+key is a provider network type and each value is a list containing two numbers.
+The first number is the minimum segmentation ID that is valid. The second
+number is the maximum segmentation ID. Pertains only to the vlan, gre, and
+vxlan network types. By default this option is not provided and each minimum
+and maximum value will be the default for the provider network type.
+
+Example: ``{'vlan': [1024, 2048], 'gre': [4094, 65536]}``
+
+
 ``OPENSTACK_SSL_CACERT``
 ------------------------
 
@@ -647,6 +870,19 @@ Default: ``False``
 
 Disable SSL certificate checks in the OpenStack clients (useful for self-signed
 certificates).
+
+
+``OPENSTACK_TOKEN_HASH_ALGORITHM``
+----------------------------------
+
+.. versionadded:: 2014.2(Juno)
+
+Default: ``"md5"``
+
+The hash algorithm to use for authentication tokens. This must match the hash
+algorithm that the identity (Keystone) server and the auth_token middleware
+are using. Allowed values are the algorithms supported by Python's hashlib
+library.
 
 
 ``POLICY_FILES``
@@ -690,16 +926,34 @@ This setting notifies the Data Processing (Sahara) system whether or not
 automatic IP allocation is enabled.  You would want to set this to True
 if you were running Nova Networking with auto_assign_floating_ip = True.
 
-``CONSOLE_TYPE``
--------------------------------------
 
-Default:  ``"AUTO"``
+``TROVE_ADD_USER_PERMS`` and ``TROVE_ADD_DATABASE_PERMS``
+---------------------------------------------------------
 
-This settings specifies the type of in-browser VNC console used to access the
-VMs.
-Valid values are  ``"AUTO"``(default), ``"VNC"``, ``"SPICE"``, ``"RDP"`` and
-``None``(this latest value is available in version 2014.2(Juno) to allow
-deactivating the in-browser console).
+.. versionadded:: 2013.2(Havana)
+
+Default: ``[]``
+
+Trove user and database extension support. By default, support for
+creating users and databases on database instances is turned on.
+To disable these extensions set the permission to something
+unusable such as ``[!]``.
+
+
+``WEBROOT``
+-----------
+
+.. versionadded:: 2015.1(Kilo)
+
+Default: ``"/"``
+
+Specifies the location where the access to the dashboard is configured in
+the web server.
+
+For example, if you're accessing the Dashboard via
+https://<your server>/horizon, you'd set this to ``"/horizon"``.
+
+
 
 
 Django Settings (Partial)
@@ -727,7 +981,13 @@ running the dashboard; if it's being accessed via name, the
 DNS name (and probably short-name) should be added, if it's accessed via
 IP address, that should be added. The setting may contain more than one entry.
 
+.. note::
 
+    ALLOWED_HOSTS is required for versions of Django 1.5 and newer.
+    If Horizon is running in production (DEBUG is False), set this
+    with the list of host/domain names that the application can serve.
+    For more information see:
+    https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 
 ``DEBUG`` and ``TEMPLATE_DEBUG``
 --------------------------------
@@ -752,8 +1012,27 @@ This should absolutely be set to a unique (and secret) value for your
 deployment. Unless you are running a load-balancer with multiple Horizon
 installations behind it, each Horizon instance should have a unique secret key.
 
+.. note::
+
+    Setting a custom secret key:
+    You can either set it to a specific value or you can let Horizon generate a
+    default secret key that is unique on this machine, regardless of the
+    amount of Python WSGI workers (if used behind Apache+mod_wsgi). However, there
+    may be situations where you would want to set this explicitly, e.g. when
+    multiple dashboard instances are distributed on different machines (usually
+    behind a load-balancer). Either you have to make sure that a session gets all
+    requests routed to the same dashboard instance or you set the same SECRET_KEY
+    for all of them.
+
+
+From horizon.utils import secret_key::
+
+    SECRET_KEY = secret_key.generate_or_read_from_file(
+    os.path.join(LOCAL_PATH, '.secret_key_store'))
+
 The ``local_settings.py.example`` file includes a quick-and-easy way to
 generate a secret key for a single installation.
+
 
 ``SECURE_PROXY_SSL_HEADER``, ``CSRF_COOKIE_SECURE`` and ``SESSION_COOKIE_SECURE``
 ---------------------------------------------------------------------------------
@@ -763,6 +1042,19 @@ generate a secret key for a single installation.
 These three settings should be configured if you are deploying Horizon with
 SSL. The values indicated in the default ``local_settings.py.example`` file
 are generally safe to use.
+
+When CSRF_COOKIE_SECURE or SESSION_COOKIE_SECURE are set to True, these attributes
+help protect the session cookies from cross-site scripting.
+
+``ADD_INSTALLED_APPS``
+----------------------
+
+.. versionadded:: 2015.1(Kilo)
+
+A list of Django applications to be prepended to the ``INSTALLED_APPS``
+setting. Allows extending the list of installed applications without having
+to override it completely.
+
 
 .. _pluggable-settings-label:
 
@@ -814,9 +1106,18 @@ are added as dependencies on the root Horizon application ``hz``.
 
 .. versionadded:: 2014.2(Juno)
 
-A list of javascript files to be included in the compressed set of files that are
+A list of javascript source files to be included in the compressed set of files that are
 loaded on every page. This is needed for AngularJS modules that are referenced in
 ``ADD_ANGULAR_MODULES`` and therefore need to be included in every page.
+
+``ADD_JS_SPEC_FILES``
+----------------------
+
+.. versionadded:: 2015.1(Kilo)
+
+A list of javascript spec files to include for integration with the Jasmine spec runner.
+Jasmine is a behavior-driven development framework for testing JavaScript code.
+
 
 ``DISABLED``
 ------------
@@ -846,7 +1147,7 @@ The following keys are specific to registering a dashboard:
 
 .. versionadded:: 2014.1(Icehouse)
 
-The name of the dashboard to be added to ``HORIZON['dashboards']``. Required.
+The slug of the dashboard to be added to ``HORIZON['dashboards']``. Required.
 
 ``DEFAULT``
 -----------
@@ -894,14 +1195,14 @@ The following keys are specific to registering or removing a panel:
 
 .. versionadded:: 2014.1(Icehouse)
 
-The name of the panel to be added to ``HORIZON_CONFIG``. Required.
+The slug of the panel to be added to ``HORIZON_CONFIG``. Required.
 
 ``PANEL_DASHBOARD``
 -------------------
 
 .. versionadded:: 2014.1(Icehouse)
 
-The name of the dashboard the ``PANEL`` associated with. Required.
+The slug of the dashboard the ``PANEL`` associated with. Required.
 
 
 ``PANEL_GROUP``
@@ -909,8 +1210,8 @@ The name of the dashboard the ``PANEL`` associated with. Required.
 
 .. versionadded:: 2014.1(Icehouse)
 
-The name of the panel group the ``PANEL`` is associated with. If you want the panel to show up
-without a panel group, use the panel group "default".
+The slug of the panel group the ``PANEL`` is associated with. If you want the
+panel to show up without a panel group, use the panel group "default".
 
 ``DEFAULT_PANEL``
 -----------------
@@ -977,7 +1278,7 @@ The following keys are specific to registering a panel group:
 
 .. versionadded:: 2014.1(Icehouse)
 
-The name of the panel group to be added to ``HORIZON_CONFIG``. Required.
+The slug of the panel group to be added to ``HORIZON_CONFIG``. Required.
 
 ``PANEL_GROUP_NAME``
 --------------------
@@ -991,7 +1292,7 @@ The display name of the PANEL_GROUP. Required.
 
 .. versionadded:: 2014.1(Icehouse)
 
-The name of the dashboard the ``PANEL_GROUP`` associated with. Required.
+The slug of the dashboard the ``PANEL_GROUP`` associated with. Required.
 
 
 

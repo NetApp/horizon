@@ -7,7 +7,7 @@
 <div class="status row detail">
     {% for node_group in cluster.node_groups %}
         <dl class="well">
-            <h4>{% trans "Name" %}: {{ node_group.name }}</h4>
+            <h4>{% blocktrans with node_group_name=node_group.name %}Name: {{ node_group_name }}{% endblocktrans %}</h4>
             <dt>{% trans "Number of Nodes" %}</dt>
             <dd>{{ node_group.count }}</dd>
 
@@ -32,8 +32,12 @@
             <dt>{% trans "Security Groups" %}</dt>
             <dd>
                 <ul class="list-bullet">
-                    {% for group in node_group.security_groups %}
-                        <li>{{ group }}</li>
+                    {% for group in node_group.security_groups_full %}
+                        {% if group.id %}
+                            <li><a href="{% url 'horizon:project:access_and_security:security_groups:detail' group.id %}">{{ group.name }}</a></li>
+                        {% else %}
+                            <li>{{ group.name }}</li>
+                        {% endif %}
                     {% endfor %}
                 </ul>
             </dd>
@@ -59,7 +63,7 @@
                         {% if service_conf %}
                         <ul>
                         {% for conf_name, conf_value in service_conf.items %}
-                            <li>{{ conf_name }}:&nbsp{{ conf_value }}</li>
+                            <li>{% blocktrans %}{{ conf_name }}: {{ conf_value }}{% endblocktrans %}</li>
                         {% endfor %}
                         </ul>
                         {% else %}

@@ -100,27 +100,9 @@ horizon.inline_edit = {
           self.form_element = self.get_form_element(td_element);
 
           if (self.inline_edit_mod) {
-            // if cell is in inline edit mode
-            var table_cell_wrapper = td_element.find(".table_cell_wrapper");
-
-            width = self.td_element.outerWidth();
-            height = self.td_element.outerHeight();
-
-            td_element.width(width);
-            td_element.height(height);
-            td_element.css('margin', 0).css('padding', 0);
-            table_cell_wrapper.css('margin', 0).css('padding', 0);
-
-            if (self.form_element.attr('type') === 'checkbox'){
-              var inline_edit_form = td_element.find(".inline-edit-form");
-              inline_edit_form.css('padding-top', '11px').css('padding-left', '4px');
-              inline_edit_form.width(width - 40);
-            } else {
-              // setting CSS of element, so the cell remains the same size in editing mode
-              self.form_element.width(width - 40);
-              self.form_element.height(height - 2);
-              self.form_element.css('margin', 0).css('padding', 0);
-            }
+            var cellWidth = self.td_element.outerWidth(true);
+            td_element.width(cellWidth);
+            td_element.addClass("has-form");
           }
           // saving old td_element for cancel and loading purposes
           self.cached_presentation_view = self.td_element;
@@ -213,8 +195,11 @@ horizon.inline_edit = {
 };
 
 
-horizon.addInitFunction(function() {
-  $('table').on('click', '.ajax-inline-edit', function (evt) {
+horizon.addInitFunction(horizon.inline_edit.init = function(parent) {
+  parent = parent || document;
+  var $table = $(parent).find('table');
+
+  $table.on('click', '.ajax-inline-edit', function (evt) {
     var $this = $(this);
     var td_element = $this.parents('td').first();
 
@@ -236,17 +221,17 @@ horizon.addInitFunction(function() {
     evt.preventDefault();
   };
 
-  $('table').on('click', '.inline-edit-submit', function (evt) {
+  $table.on('click', '.inline-edit-submit', function (evt) {
     submit_form(evt, this);
   });
 
-  $('table').on('keypress', '.inline-edit-form', function (evt) {
+  $table.on('keypress', '.inline-edit-form', function (evt) {
     if (evt.which === 13 && !evt.shiftKey) {
       submit_form(evt, this);
     }
   });
 
-  $('table').on('click', '.inline-edit-cancel', function (evt) {
+  $table.on('click', '.inline-edit-cancel', function (evt) {
     var $cancel = $(this);
     var td_element = $cancel.parents('td').first();
 
@@ -256,11 +241,11 @@ horizon.addInitFunction(function() {
     evt.preventDefault();
   });
 
-  $('table').on('mouseenter', '.inline_edit_available', function (evt) {
+  $table.on('mouseenter', '.inline_edit_available', function (evt) {
     $(this).find(".table_cell_action").fadeIn(100);
   });
 
-  $('table').on('mouseleave', '.inline_edit_available', function (evt) {
+  $table.on('mouseleave', '.inline_edit_available', function (evt) {
     $(this).find(".table_cell_action").fadeOut(200);
   });
 });

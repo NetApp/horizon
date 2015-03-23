@@ -14,7 +14,9 @@
 
 from django.core import urlresolvers
 from django.template import defaultfilters as d_filters
+from django.utils.translation import pgettext_lazy
 from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ungettext_lazy
 
 from horizon import exceptions
 from horizon import tables
@@ -30,24 +32,53 @@ ACTIVE_STATES = ("ACTIVE",)
 
 
 class TerminateInstance(tables.BatchAction):
+    help_text = _("Terminated instances are not recoverable.")
+
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Terminate Instance",
+            u"Terminate Instances",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Scheduled termination of Instance",
+            u"Scheduled termination of Instances",
+            count
+        )
+
     name = "terminate"
-    action_present = _("Terminate")
-    action_past = _("Scheduled termination of %(data_type)s")
-    data_type_singular = _("Instance")
-    data_type_plural = _("Instances")
     classes = ("btn-danger", )
-    icon = "off"
+    icon = "remove"
 
     def action(self, request, obj_id):
         api.trove.instance_delete(request, obj_id)
 
 
 class RestartInstance(tables.BatchAction):
+    help_text = _("Restarted instances will lose any data not"
+                  " saved in persistent storage.")
+
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Restart Instance",
+            u"Restart Instances",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Restarted Instance",
+            u"Restarted Instances",
+            count
+        )
+
     name = "restart"
-    action_present = _("Restart")
-    action_past = _("Restarted")
-    data_type_singular = _("Instance")
-    data_type_plural = _("Instances")
     classes = ('btn-danger', 'btn-reboot')
 
     def allowed(self, request, instance=None):
@@ -58,9 +89,50 @@ class RestartInstance(tables.BatchAction):
         api.trove.instance_restart(request, obj_id)
 
 
+class DetachReplica(tables.BatchAction):
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Detach Replica",
+            u"Detach Replicas",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Replica Detached",
+            u"Replicas Detached",
+            count
+        )
+
+    name = "detach_replica"
+    classes = ('btn-danger', 'btn-detach-replica')
+
+    def allowed(self, request, instance=None):
+        return (instance.status in ACTIVE_STATES
+                and hasattr(instance, 'replica_of'))
+
+    def action(self, request, obj_id):
+        api.trove.instance_detach_replica(request, obj_id)
+
+
 class DeleteUser(tables.DeleteAction):
-    data_type_singular = _("User")
-    data_type_plural = _("Users")
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Delete User",
+            u"Delete Users",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Deleted User",
+            u"Deleted Users",
+            count
+        )
 
     def delete(self, request, obj_id):
         datum = self.table.get_object_by_id(obj_id)
@@ -72,8 +144,21 @@ class DeleteUser(tables.DeleteAction):
 
 
 class DeleteDatabase(tables.DeleteAction):
-    data_type_singular = _("Database")
-    data_type_plural = _("Databases")
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Delete Database",
+            u"Delete Databases",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Deleted Database",
+            u"Deleted Databases",
+            count
+        )
 
     def delete(self, request, obj_id):
         datum = self.table.get_object_by_id(obj_id)
@@ -115,8 +200,22 @@ class ResizeVolume(tables.LinkAction):
     classes = ("ajax-modal", "btn-resize")
 
     def allowed(self, request, instance=None):
+        return instance.status in ACTIVE_STATES
+
+    def get_link_url(self, datum):
+        instance_id = self.table.get_object_id(datum)
+        return urlresolvers.reverse(self.url, args=[instance_id])
+
+
+class ResizeInstance(tables.LinkAction):
+    name = "resize_instance"
+    verbose_name = _("Resize Instance")
+    url = "horizon:project:databases:resize_instance"
+    classes = ("ajax-modal", "btn-resize")
+
+    def allowed(self, request, instance=None):
         return ((instance.status in ACTIVE_STATES
-                 or instance.status == 'SHUTDOWN'))
+                 or instance.status == 'SHUTOFF'))
 
     def get_link_url(self, datum):
         instance_id = self.table.get_object_id(datum)
@@ -161,7 +260,7 @@ def get_size(instance):
     if hasattr(instance, "full_flavor"):
         size_string = _("%(name)s | %(RAM)s RAM")
         vals = {'name': instance.full_flavor.name,
-                'RAM': sizeformat.mbformat(instance.full_flavor.ram)}
+                'RAM': sizeformat.mb_float_format(instance.full_flavor.ram)}
         return size_string % vals
     return _("Not available")
 
@@ -184,7 +283,7 @@ class InstancesTable(tables.DataTable):
     STATUS_CHOICES = (
         ("ACTIVE", True),
         ("BLOCKED", True),
-        ("BUILD", True),
+        ("BUILD", None),
         ("FAILED", False),
         ("REBOOT", None),
         ("RESIZE", None),
@@ -193,8 +292,31 @@ class InstancesTable(tables.DataTable):
         ("ERROR", False),
         ("RESTART_REQUIRED", None),
     )
+    STATUS_DISPLAY_CHOICES = (
+        ("ACTIVE", pgettext_lazy("Current status of a Database Instance",
+                                 u"Active")),
+        ("BLOCKED", pgettext_lazy("Current status of a Database Instance",
+                                  u"Blocked")),
+        ("BUILD", pgettext_lazy("Current status of a Database Instance",
+                                u"Build")),
+        ("FAILED", pgettext_lazy("Current status of a Database Instance",
+                                 u"Failed")),
+        ("REBOOT", pgettext_lazy("Current status of a Database Instance",
+                                 u"Reboot")),
+        ("RESIZE", pgettext_lazy("Current status of a Database Instance",
+                                 u"Resize")),
+        ("BACKUP", pgettext_lazy("Current status of a Database Instance",
+                                 u"Backup")),
+        ("SHUTDOWN", pgettext_lazy("Current status of a Database Instance",
+                                   u"Shutdown")),
+        ("ERROR", pgettext_lazy("Current status of a Database Instance",
+                                u"Error")),
+        ("RESTART_REQUIRED",
+         pgettext_lazy("Current status of a Database Instance",
+                       u"Restart Required")),
+    )
     name = tables.Column("name",
-                         link=("horizon:project:databases:detail"),
+                         link="horizon:project:databases:detail",
                          verbose_name=_("Instance Name"))
     datastore = tables.Column(get_datastore,
                               verbose_name=_("Datastore"))
@@ -205,16 +327,15 @@ class InstancesTable(tables.DataTable):
                          verbose_name=_("Size"),
                          attrs={'data-type': 'size'})
     volume = tables.Column(get_volume_size,
-                         verbose_name=_("Volume Size"),
-                         attrs={'data-type': 'size'})
+                           verbose_name=_("Volume Size"),
+                           attrs={'data-type': 'size'})
     status = tables.Column("status",
-                           filters=(d_filters.title,
-                                    filters.replace_underscores),
                            verbose_name=_("Status"),
                            status=True,
-                           status_choices=STATUS_CHOICES)
+                           status_choices=STATUS_CHOICES,
+                           display_choices=STATUS_DISPLAY_CHOICES)
 
-    class Meta:
+    class Meta(object):
         name = "databases"
         verbose_name = _("Instances")
         status_columns = ["status"]
@@ -222,7 +343,9 @@ class InstancesTable(tables.DataTable):
         table_actions = (LaunchLink, TerminateInstance)
         row_actions = (CreateBackup,
                        ResizeVolume,
+                       ResizeInstance,
                        RestartInstance,
+                       DetachReplica,
                        TerminateInstance)
 
 
@@ -231,7 +354,7 @@ class UsersTable(tables.DataTable):
     host = tables.Column("host", verbose_name=_("Allowed Host"))
     databases = tables.Column(get_databases, verbose_name=_("Databases"))
 
-    class Meta:
+    class Meta(object):
         name = "users"
         verbose_name = _("Users")
         table_actions = [DeleteUser]
@@ -244,7 +367,7 @@ class UsersTable(tables.DataTable):
 class DatabaseTable(tables.DataTable):
     name = tables.Column("name", verbose_name=_("Database Name"))
 
-    class Meta:
+    class Meta(object):
         name = "databases"
         verbose_name = _("Databases")
         table_actions = [DeleteDatabase]
@@ -260,7 +383,7 @@ def is_incremental(obj):
 
 class InstanceBackupsTable(tables.DataTable):
     name = tables.Column("name",
-                         link=("horizon:project:database_backups:detail"),
+                         link="horizon:project:database_backups:detail",
                          verbose_name=_("Name"))
     created = tables.Column("created", verbose_name=_("Created"),
                             filters=[filters.parse_isotime])
@@ -271,14 +394,14 @@ class InstanceBackupsTable(tables.DataTable):
                                 verbose_name=_("Incremental"),
                                 filters=(d_filters.yesno,
                                          d_filters.capfirst))
-    status = tables.Column("status",
-                           filters=(d_filters.title,
-                                    filters.replace_underscores),
-                           verbose_name=_("Status"),
-                           status=True,
-                           status_choices=backup_tables.STATUS_CHOICES)
+    status = tables.Column(
+        "status",
+        verbose_name=_("Status"),
+        status=True,
+        status_choices=backup_tables.STATUS_CHOICES,
+        display_choices=backup_tables.STATUS_DISPLAY_CHOICES)
 
-    class Meta:
+    class Meta(object):
         name = "backups"
         verbose_name = _("Backups")
         status_columns = ["status"]

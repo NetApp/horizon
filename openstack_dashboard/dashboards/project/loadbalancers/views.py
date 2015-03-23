@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from django.core.urlresolvers import reverse
 from django.core.urlresolvers import reverse_lazy
 from django.utils.translation import ugettext_lazy as _
 
@@ -26,16 +27,20 @@ from openstack_dashboard import api
 from openstack_dashboard.dashboards.project.loadbalancers \
     import forms as project_forms
 from openstack_dashboard.dashboards.project.loadbalancers \
+    import tables as project_tables
+from openstack_dashboard.dashboards.project.loadbalancers \
     import tabs as project_tabs
+from openstack_dashboard.dashboards.project.loadbalancers import utils
 from openstack_dashboard.dashboards.project.loadbalancers \
     import workflows as project_workflows
 
 import re
 
 
-class IndexView(tabs.TabView):
+class IndexView(tabs.TabbedTableView):
     tab_group_class = (project_tabs.LoadBalancerTabs)
     template_name = 'project/loadbalancers/details_tabs.html'
+    page_title = _("Load Balancer")
 
     def post(self, request, *args, **kwargs):
         obj_ids = request.POST.getlist('object_ids')
@@ -74,7 +79,7 @@ class IndexView(tabs.TabView):
                 except Exception as e:
                     exceptions.handle(request,
                                       _('Unable to locate VIP to delete. %s')
-                                        % e)
+                                      % e)
                 if vip_id is not None:
                     try:
                         api.lbaas.vip_delete(request, vip_id)
@@ -115,34 +120,127 @@ class AddMonitorView(workflows.WorkflowView):
 
 
 class PoolDetailsView(tabs.TabView):
-    tab_group_class = (project_tabs.PoolDetailsTabs)
+    tab_group_class = project_tabs.PoolDetailsTabs
     template_name = 'project/loadbalancers/details_tabs.html'
+
+    @memoized.memoized_method
+    def get_data(self):
+        pid = self.kwargs['pool_id']
+
+        try:
+            pool = api.lbaas.pool_get(self.request, pid)
+        except Exception:
+            pool = []
+            exceptions.handle(self.request,
+                              _('Unable to retrieve pool details.'))
+        else:
+            for monitor in pool.health_monitors:
+                display_name = utils.get_monitor_display_name(monitor)
+                setattr(monitor, 'display_name', display_name)
+
+        return pool
+
+    def get_context_data(self, **kwargs):
+        context = super(PoolDetailsView, self).get_context_data(**kwargs)
+        pool = self.get_data()
+        context['pool'] = pool
+        table = project_tables.PoolsTable(self.request)
+        context["url"] = self.get_redirect_url()
+        context["actions"] = table.render_row_actions(pool)
+        return context
+
+    def get_tabs(self, request, *args, **kwargs):
+        pool = self.get_data()
+        return self.tab_group_class(self.request, pool=pool, **kwargs)
+
+    @staticmethod
+    def get_redirect_url():
+        return reverse_lazy("horizon:project:loadbalancers:index")
 
 
 class VipDetailsView(tabs.TabView):
-    tab_group_class = (project_tabs.VipDetailsTabs)
+    tab_group_class = project_tabs.VipDetailsTabs
     template_name = 'project/loadbalancers/details_tabs.html'
 
 
 class MemberDetailsView(tabs.TabView):
-    tab_group_class = (project_tabs.MemberDetailsTabs)
+    tab_group_class = project_tabs.MemberDetailsTabs
     template_name = 'project/loadbalancers/details_tabs.html'
+
+    @memoized.memoized_method
+    def get_data(self):
+        mid = self.kwargs['member_id']
+        try:
+            return api.lbaas.member_get(self.request, mid)
+        except Exception:
+            exceptions.handle(self.request,
+                              _('Unable to retrieve member details.'))
+
+    def get_context_data(self, **kwargs):
+        context = super(MemberDetailsView, self).get_context_data(**kwargs)
+        member = self.get_data()
+        context['member'] = member
+        table = project_tables.MembersTable(self.request)
+        context["url"] = self.get_redirect_url()
+        context["actions"] = table.render_row_actions(member)
+        return context
+
+    def get_tabs(self, request, *args, **kwargs):
+        member = self.get_data()
+        return self.tab_group_class(request, member=member, **kwargs)
+
+    @staticmethod
+    def get_redirect_url():
+        return reverse_lazy("horizon:project:loadbalancers:index")
 
 
 class MonitorDetailsView(tabs.TabView):
-    tab_group_class = (project_tabs.MonitorDetailsTabs)
+    tab_group_class = project_tabs.MonitorDetailsTabs
     template_name = 'project/loadbalancers/details_tabs.html'
+
+    @memoized.memoized_method
+    def get_data(self):
+        mid = self.kwargs['monitor_id']
+        try:
+            return api.lbaas.pool_health_monitor_get(self.request, mid)
+        except Exception:
+            exceptions.handle(self.request,
+                              _('Unable to retrieve monitor details.'))
+
+    def get_context_data(self, **kwargs):
+        context = super(MonitorDetailsView, self).get_context_data(**kwargs)
+        monitor = self.get_data()
+        context['monitor'] = monitor
+        table = project_tables.MonitorsTable(self.request)
+        context["url"] = self.get_redirect_url()
+        context["actions"] = table.render_row_actions(monitor)
+        return context
+
+    def get_tabs(self, request, *args, **kwargs):
+        monitor = self.get_data()
+        return self.tab_group_class(request, monitor=monitor, **kwargs)
+
+    @staticmethod
+    def get_redirect_url():
+        return reverse_lazy("horizon:project:loadbalancers:index")
 
 
 class UpdatePoolView(forms.ModalFormView):
     form_class = project_forms.UpdatePool
+    form_id = "update_pool_form"
+    modal_header = _("Edit Pool")
     template_name = "project/loadbalancers/updatepool.html"
     context_object_name = 'pool'
+    submit_label = _("Save Changes")
+    submit_url = "horizon:project:loadbalancers:updatepool"
     success_url = reverse_lazy("horizon:project:loadbalancers:index")
+    page_title = _("Edit Pool")
 
     def get_context_data(self, **kwargs):
         context = super(UpdatePoolView, self).get_context_data(**kwargs)
         context["pool_id"] = self.kwargs['pool_id']
+        args = (self.kwargs['pool_id'],)
+        context['submit_url'] = reverse(self.submit_url, args=args)
         return context
 
     @memoized.memoized_method
@@ -166,13 +264,20 @@ class UpdatePoolView(forms.ModalFormView):
 
 class UpdateVipView(forms.ModalFormView):
     form_class = project_forms.UpdateVip
+    form_id = "update_vip_form"
+    modal_header = _("Edit VIP")
     template_name = "project/loadbalancers/updatevip.html"
     context_object_name = 'vip'
+    submit_label = _("Save Changes")
+    submit_url = "horizon:project:loadbalancers:updatevip"
     success_url = reverse_lazy("horizon:project:loadbalancers:index")
+    page_title = _("Edit VIP")
 
     def get_context_data(self, **kwargs):
         context = super(UpdateVipView, self).get_context_data(**kwargs)
         context["vip_id"] = self.kwargs['vip_id']
+        args = (self.kwargs['vip_id'],)
+        context['submit_url'] = reverse(self.submit_url, args=args)
         return context
 
     @memoized.memoized_method
@@ -210,13 +315,20 @@ class UpdateVipView(forms.ModalFormView):
 
 class UpdateMemberView(forms.ModalFormView):
     form_class = project_forms.UpdateMember
+    form_id = "update_pool_form"
+    modal_header = _("Edit Member")
     template_name = "project/loadbalancers/updatemember.html"
     context_object_name = 'member'
+    submit_label = _("Save Changes")
+    submit_url = "horizon:project:loadbalancers:updatemember"
     success_url = reverse_lazy("horizon:project:loadbalancers:index")
+    page_title = _("Edit Member")
 
     def get_context_data(self, **kwargs):
         context = super(UpdateMemberView, self).get_context_data(**kwargs)
         context["member_id"] = self.kwargs['member_id']
+        args = (self.kwargs['member_id'],)
+        context['submit_url'] = reverse(self.submit_url, args=args)
         return context
 
     @memoized.memoized_method
@@ -239,13 +351,20 @@ class UpdateMemberView(forms.ModalFormView):
 
 class UpdateMonitorView(forms.ModalFormView):
     form_class = project_forms.UpdateMonitor
+    form_id = "update_monitor_form"
+    modal_header = _("Edit Monitor")
     template_name = "project/loadbalancers/updatemonitor.html"
     context_object_name = 'monitor'
+    submit_label = _("Save Changes")
+    submit_url = "horizon:project:loadbalancers:updatemonitor"
     success_url = reverse_lazy("horizon:project:loadbalancers:index")
+    page_title = _("Edit Monitor")
 
     def get_context_data(self, **kwargs):
         context = super(UpdateMonitorView, self).get_context_data(**kwargs)
         context["monitor_id"] = self.kwargs['monitor_id']
+        args = (self.kwargs['monitor_id'],)
+        context['submit_url'] = reverse(self.submit_url, args=args)
         return context
 
     @memoized.memoized_method

@@ -76,7 +76,7 @@ class UpdateInstanceSecurityGroupsAction(workflows.MembershipAction):
             return False
         return True
 
-    class Meta:
+    class Meta(object):
         name = _("Security Groups")
         slug = INSTANCE_SEC_GROUP_SLUG
 
@@ -115,8 +115,8 @@ class UpdateInstanceInfoAction(workflows.Action):
             return False
         return True
 
-    class Meta:
-        name = _("Info")
+    class Meta(object):
+        name = _("Information")
         slug = 'instance_info'
         help_text = _("Edit the instance details.")
 

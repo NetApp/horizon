@@ -40,7 +40,7 @@ class TestActionOne(workflows.Action):
     project_id = forms.ChoiceField(label="Project")
     user_id = forms.ChoiceField(label="User")
 
-    class Meta:
+    class Meta(object):
         name = "Test Action One"
         slug = "test_action_one"
 
@@ -57,7 +57,7 @@ class TestActionOne(workflows.Action):
 class TestActionTwo(workflows.Action):
     instance_id = forms.CharField(label="Instance")
 
-    class Meta:
+    class Meta(object):
         name = "Test Action Two"
         slug = "test_action_two"
 
@@ -65,7 +65,7 @@ class TestActionTwo(workflows.Action):
 class TestActionThree(workflows.Action):
     extra = forms.CharField(widget=forms.widgets.Textarea)
 
-    class Meta:
+    class Meta(object):
         name = "Test Action Three"
         slug = "test_action_three"
 
@@ -73,7 +73,7 @@ class TestActionThree(workflows.Action):
 class AdminAction(workflows.Action):
     admin_id = forms.CharField(label="Admin")
 
-    class Meta:
+    class Meta(object):
         name = "Admin Action"
         slug = "admin_action"
         permissions = ("horizon.test",)
@@ -88,8 +88,9 @@ class TestStepTwo(workflows.Step):
     action_class = TestActionTwo
     depends_on = ("project_id",)
     contributes = ("instance_id",)
-    connections = {"project_id": (local_callback_func,
-                        "horizon.test.tests.workflows.other_callback_func")}
+    connections = {"project_id":
+                   (local_callback_func,
+                    "horizon.test.tests.workflows.other_callback_func")}
 
 
 class TestExtraStep(workflows.Step):

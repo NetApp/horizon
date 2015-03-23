@@ -15,6 +15,7 @@
 """
 Views for managing Neutron Networks.
 """
+from django.core.urlresolvers import reverse
 from django.core.urlresolvers import reverse_lazy
 from django.utils.translation import ugettext_lazy as _
 
@@ -41,6 +42,7 @@ from openstack_dashboard.dashboards.project.networks \
 class IndexView(tables.DataTableView):
     table_class = project_tables.NetworksTable
     template_name = 'project/networks/index.html'
+    page_title = _("Networks")
 
     def get_data(self):
         try:
@@ -51,27 +53,30 @@ class IndexView(tables.DataTableView):
             networks = []
             msg = _('Network list can not be retrieved.')
             exceptions.handle(self.request, msg)
-        for n in networks:
-            n.set_id_as_name_if_empty()
         return networks
 
 
 class CreateView(workflows.WorkflowView):
     workflow_class = project_workflows.CreateNetwork
-
-    def get_initial(self):
-        pass
+    ajax_template_name = 'project/networks/create.html'
 
 
 class UpdateView(forms.ModalFormView):
-    form_class = project_forms.UpdateNetwork
-    template_name = 'project/networks/update.html'
     context_object_name = 'network'
+    form_class = project_forms.UpdateNetwork
+    form_id = "update_network_form"
+    modal_header = _("Edit Network")
+    submit_label = _("Save Changes")
+    submit_url = "horizon:project:networks:update"
     success_url = reverse_lazy("horizon:project:networks:index")
+    template_name = 'project/networks/update.html'
+    page_title = _("Update Network")
 
     def get_context_data(self, **kwargs):
         context = super(UpdateView, self).get_context_data(**kwargs)
+        args = (self.kwargs['network_id'],)
         context["network_id"] = self.kwargs['network_id']
+        context["submit_url"] = reverse(self.submit_url, args=args)
         return context
 
     @memoized.memoized_method
@@ -95,7 +100,7 @@ class UpdateView(forms.ModalFormView):
 class DetailView(tables.MultiTableView):
     table_classes = (subnet_tables.SubnetsTable, port_tables.PortsTable)
     template_name = 'project/networks/detail.html'
-    failure_url = reverse_lazy('horizon:project:networks:index')
+    page_title = _("Network Details: {{ network.name }}")
 
     def get_subnets_data(self):
         try:
@@ -106,8 +111,6 @@ class DetailView(tables.MultiTableView):
             subnets = []
             msg = _('Subnet list can not be retrieved.')
             exceptions.handle(self.request, msg)
-        for s in subnets:
-            s.set_id_as_name_if_empty()
         return subnets
 
     def get_ports_data(self):
@@ -118,8 +121,6 @@ class DetailView(tables.MultiTableView):
             ports = []
             msg = _('Port list can not be retrieved.')
             exceptions.handle(self.request, msg)
-        for p in ports:
-            p.set_id_as_name_if_empty()
         return ports
 
     @memoized.memoized_method
@@ -131,10 +132,19 @@ class DetailView(tables.MultiTableView):
         except Exception:
             msg = _('Unable to retrieve details for network "%s".') \
                 % (network_id)
-            exceptions.handle(self.request, msg, redirect=self.failure_url)
+            exceptions.handle(self.request, msg,
+                              redirect=self.get_redirect_url())
         return network
 
     def get_context_data(self, **kwargs):
         context = super(DetailView, self).get_context_data(**kwargs)
-        context["network"] = self._get_data()
+        network = self._get_data()
+        context["network"] = network
+        table = project_tables.NetworksTable(self.request)
+        context["url"] = self.get_redirect_url()
+        context["actions"] = table.render_row_actions(network)
         return context
+
+    @staticmethod
+    def get_redirect_url():
+        return reverse_lazy('horizon:project:networks:index')

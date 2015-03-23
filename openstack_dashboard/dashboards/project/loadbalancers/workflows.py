@@ -43,8 +43,8 @@ class AddPoolAction(workflows.Action):
     subnet_id = forms.ChoiceField(label=_("Subnet"))
     protocol = forms.ChoiceField(label=_("Protocol"))
     lb_method = forms.ChoiceField(label=_("Load Balancing Method"))
-    # TODO(amotoki): make UP/DOWN translatable
-    admin_state_up = forms.ChoiceField(choices=[(True, 'UP'), (False, 'DOWN')],
+    admin_state_up = forms.ChoiceField(choices=[(True, _('UP')),
+                                                (False, _('DOWN'))],
                                        label=_("Admin State"))
 
     def __init__(self, request, *args, **kwargs):
@@ -106,7 +106,7 @@ class AddPoolAction(workflows.Action):
             self.fields['provider'].widget.attrs['readonly'] = True
         self.fields['provider'].choices = provider_choices
 
-    class Meta:
+    class Meta(object):
         name = _("Add New Pool")
         permissions = ('openstack.services.network',)
         help_text = _("Create Pool for current project.\n\n"
@@ -162,7 +162,8 @@ class AddVipAction(workflows.Action):
     address = forms.IPField(label=_("Specify a free IP address "
                                     "from the selected subnet"),
                             version=forms.IPv4,
-                            mask=False)
+                            mask=False,
+                            required=False)
     protocol_port = forms.IntegerField(
         label=_("Protocol Port"), min_value=1,
         help_text=_("Enter an integer value "
@@ -189,8 +190,8 @@ class AddVipAction(workflows.Action):
         required=False, min_value=-1, label=_("Connection Limit"),
         help_text=_("Maximum number of connections allowed "
                     "for the VIP or '-1' if the limit is not set"))
-    # TODO(amotoki): make UP/DOWN translatable
-    admin_state_up = forms.ChoiceField(choices=[(True, 'UP'), (False, 'DOWN')],
+    admin_state_up = forms.ChoiceField(choices=[(True, _('UP')),
+                                                (False, _('DOWN'))],
                                        label=_("Admin State"))
 
     def __init__(self, request, *args, **kwargs):
@@ -228,7 +229,7 @@ class AddVipAction(workflows.Action):
             self._errors['cookie_name'] = self.error_class([msg])
         return cleaned_data
 
-    class Meta:
+    class Meta(object):
         name = _("Specify VIP")
         permissions = ('openstack.services.network',)
         help_text = _("Create a VIP for this pool. "
@@ -341,8 +342,8 @@ class AddMemberAction(workflows.Action):
                     "members and can be modified later."),
         validators=[validators.validate_port_range]
     )
-    # TODO(amotoki): make UP/DOWN translatable
-    admin_state_up = forms.ChoiceField(choices=[(True, 'UP'), (False, 'DOWN')],
+    admin_state_up = forms.ChoiceField(choices=[(True, _('UP')),
+                                                (False, _('DOWN'))],
                                        label=_("Admin State"))
 
     def __init__(self, request, *args, **kwargs):
@@ -396,7 +397,7 @@ class AddMemberAction(workflows.Action):
             self._errors['address'] = self.error_class([msg])
         return cleaned_data
 
-    class Meta:
+    class Meta(object):
         name = _("Add New Member")
         permissions = ('openstack.services.network',)
         help_text = _("Add member(s) to the selected pool.\n\n"
@@ -544,8 +545,8 @@ class AddMonitorAction(workflows.Action):
             'data-type-http': _('Expected HTTP Status Codes'),
             'data-type-https': _('Expected HTTP Status Codes')
         }))
-    # TODO(amotoki): make UP/DOWN translatable
-    admin_state_up = forms.ChoiceField(choices=[(True, 'UP'), (False, 'DOWN')],
+    admin_state_up = forms.ChoiceField(choices=[(True, _('UP')),
+                                                (False, _('DOWN'))],
                                        label=_("Admin State"))
 
     def __init__(self, request, *args, **kwargs):
@@ -554,6 +555,12 @@ class AddMonitorAction(workflows.Action):
     def clean(self):
         cleaned_data = super(AddMonitorAction, self).clean()
         type_opt = cleaned_data.get('type')
+        delay = cleaned_data.get('delay')
+        timeout = cleaned_data.get('timeout')
+
+        if not delay >= timeout:
+            msg = _('Delay must be greater than or equal to Timeout')
+            self._errors['delay'] = self.error_class([msg])
 
         if type_opt in ['http', 'https']:
             http_method_opt = cleaned_data.get('http_method')
@@ -573,7 +580,7 @@ class AddMonitorAction(workflows.Action):
                 self._errors['expected_codes'] = self.error_class([msg])
         return cleaned_data
 
-    class Meta:
+    class Meta(object):
         name = _("Add New Monitor")
         permissions = ('openstack.services.network',)
         help_text = _("Create a monitor template.\n\n"
@@ -643,7 +650,7 @@ class AddPMAssociationAction(workflows.Action):
 
         return monitor_id_choices
 
-    class Meta:
+    class Meta(object):
         name = _("Association Details")
         permissions = ('openstack.services.network',)
         help_text = _("Associate a health monitor with target pool.")
@@ -705,7 +712,7 @@ class DeletePMAssociationAction(workflows.Action):
 
         return monitor_id_choices
 
-    class Meta:
+    class Meta(object):
         name = _("Association Details")
         permissions = ('openstack.services.network',)
         help_text = _("Disassociate a health monitor from target pool. ")

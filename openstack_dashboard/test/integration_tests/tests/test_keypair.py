@@ -13,23 +13,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import random
-
 from openstack_dashboard.test.integration_tests import helpers
 
 
 class TestKeypair(helpers.TestCase):
     """Checks that the user is able to create/delete keypair."""
-    KEYPAIR_NAME = 'horizonkeypair' + str(random.randint(0, 1000))
+    KEYPAIR_NAME = helpers.gen_random_resource_name("keypair")
 
     def test_keypair(self):
-        accesssecurity_page = self.home_pg.go_to_accesssecurity_page()
-        keypair_page = accesssecurity_page.go_to_keypair_page()
-
+        keypair_page = self.home_pg.go_to_accessandsecurity_keypairspage()
         keypair_page.create_keypair(self.KEYPAIR_NAME)
-        accesssecurity_page = self.home_pg.go_to_accesssecurity_page()
-        keypair_page = accesssecurity_page.go_to_keypair_page()
-        self.assertTrue(keypair_page.get_keypair_status(self.KEYPAIR_NAME))
+
+        keypair_page = self.home_pg.go_to_accessandsecurity_keypairspage()
+        self.assertTrue(keypair_page.is_keypair_present(self.KEYPAIR_NAME))
 
         keypair_page.delete_keypair(self.KEYPAIR_NAME)
-        self.assertFalse(keypair_page.get_keypair_status(self.KEYPAIR_NAME))
+        self.assertFalse(keypair_page.is_keypair_present(self.KEYPAIR_NAME))

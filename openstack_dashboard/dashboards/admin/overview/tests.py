@@ -91,11 +91,11 @@ class UsageViewTests(test.BaseAdminViewTests):
         api.network.floating_ip_supported(IsA(http.HttpRequest)) \
             .AndReturn(True)
         api.network.tenant_floating_ip_list(IsA(http.HttpRequest)) \
-                           .AndReturn(self.floating_ips.list())
+            .AndReturn(self.floating_ips.list())
         api.network.security_group_list(IsA(http.HttpRequest)) \
-                           .AndReturn(self.q_secgroups.list())
+            .AndReturn(self.q_secgroups.list())
         api.cinder.tenant_absolute_limits(IsA(http.HttpRequest)) \
-                           .AndReturn(self.cinder_limits['absolute'])
+            .AndReturn(self.cinder_limits['absolute'])
 
         self.mox.ReplayAll()
         res = self.client.get(reverse('horizon:admin:overview:index'))
@@ -112,12 +112,14 @@ class UsageViewTests(test.BaseAdminViewTests):
               <td class="sortable normal_column">%s</td>
               <td class="sortable normal_column">%.2f</td>
               <td class="sortable normal_column">%.2f</td>
+              <td class="sortable normal_column">%.2f</td>
             </tr>
             ''' % (usage_list[0].vcpus,
-                   sizeformat.diskgbformat(usage_list[0].disk_gb_hours),
-                   sizeformat.mbformat(usage_list[0].memory_mb),
+                   sizeformat.diskgbformat(usage_list[0].local_gb),
+                   sizeformat.mb_float_format(usage_list[0].memory_mb),
                    usage_list[0].vcpu_hours,
-                   usage_list[0].total_local_gb_usage)
+                   usage_list[0].disk_gb_hours,
+                   usage_list[0].memory_mb_hours)
         )
 
         # test for deleted project
@@ -129,12 +131,14 @@ class UsageViewTests(test.BaseAdminViewTests):
               <td class="sortable normal_column">%s</td>
               <td class="sortable normal_column">%.2f</td>
               <td class="sortable normal_column">%.2f</td>
+              <td class="sortable normal_column">%.2f</td>
             </tr>
             ''' % (usage_list[1].vcpus,
-                   sizeformat.diskgbformat(usage_list[1].disk_gb_hours),
-                   sizeformat.mbformat(usage_list[1].memory_mb),
+                   sizeformat.diskgbformat(usage_list[1].local_gb),
+                   sizeformat.mb_float_format(usage_list[1].memory_mb),
                    usage_list[1].vcpu_hours,
-                   usage_list[1].total_local_gb_usage)
+                   usage_list[1].disk_gb_hours,
+                   usage_list[1].memory_mb_hours)
         )
 
         if nova_stu_enabled:
@@ -177,11 +181,11 @@ class UsageViewTests(test.BaseAdminViewTests):
         api.network.floating_ip_supported(IsA(http.HttpRequest)) \
             .AndReturn(True)
         api.network.tenant_floating_ip_list(IsA(http.HttpRequest)) \
-                           .AndReturn(self.floating_ips.list())
+            .AndReturn(self.floating_ips.list())
         api.network.security_group_list(IsA(http.HttpRequest)) \
-                           .AndReturn(self.q_secgroups.list())
+            .AndReturn(self.q_secgroups.list())
         api.cinder.tenant_absolute_limits(IsA(http.HttpRequest)) \
-                           .AndReturn(self.cinder_limits['absolute'])
+            .AndReturn(self.cinder_limits['absolute'])
         self.mox.ReplayAll()
 
         csv_url = reverse('horizon:admin:overview:index') + "?format=csv"

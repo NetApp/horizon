@@ -17,6 +17,7 @@ import logging
 from django.core.urlresolvers import reverse
 from django.template import defaultfilters
 from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ungettext_lazy
 
 from horizon import tables
 
@@ -58,9 +59,23 @@ class EditGroupLink(tables.LinkAction):
 
 
 class DeleteGroupsAction(tables.DeleteAction):
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Delete Group",
+            u"Delete Groups",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Deleted Group",
+            u"Deleted Groups",
+            count
+        )
+
     name = "delete"
-    data_type_singular = _("Group")
-    data_type_plural = _("Groups")
     policy_rules = (("identity", "identity:delete_group"),)
 
     def allowed(self, request, datum):
@@ -73,7 +88,7 @@ class DeleteGroupsAction(tables.DeleteAction):
 
 class ManageUsersLink(tables.LinkAction):
     name = "users"
-    verbose_name = _("Modify Users")
+    verbose_name = _("Manage Members")
     url = constants.GROUPS_MANAGE_URL
     icon = "pencil"
     policy_rules = (("identity", "identity:get_group"),
@@ -102,7 +117,7 @@ class GroupsTable(tables.DataTable):
                                 verbose_name=_('Description'))
     id = tables.Column('id', verbose_name=_('Group ID'))
 
-    class Meta:
+    class Meta(object):
         name = "groups"
         verbose_name = _("Groups")
         row_actions = (ManageUsersLink, EditGroupLink, DeleteGroupsAction)
@@ -116,15 +131,27 @@ class UserFilterAction(tables.FilterAction):
         q = filter_string.lower()
         return [user for user in users
                 if q in user.name.lower()
-                or q in getattr(user, 'email', '').lower()]
+                or q in (getattr(user, 'email', None) or '').lower()]
 
 
 class RemoveMembers(tables.DeleteAction):
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Remove User",
+            u"Remove Users",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Removed User",
+            u"Removed Users",
+            count
+        )
+
     name = "removeGroupMember"
-    action_present = _("Remove")
-    action_past = _("Removed")
-    data_type_singular = _("User")
-    data_type_plural = _("Users")
     policy_rules = (("identity", "identity:remove_user_from_group"),)
 
     def allowed(self, request, user=None):
@@ -145,7 +172,7 @@ class RemoveMembers(tables.DeleteAction):
 
 class AddMembersLink(tables.LinkAction):
     name = "add_user_link"
-    verbose_name = _("Add...")
+    verbose_name = _("Add Users")
     classes = ("ajax-modal",)
     icon = "plus"
     url = constants.GROUPS_ADD_MEMBER_URL
@@ -168,22 +195,36 @@ class UsersTable(tables.DataTable):
     enabled = tables.Column('enabled', verbose_name=_('Enabled'),
                             status=True,
                             status_choices=STATUS_CHOICES,
-                            empty_value="False")
+                            filters=(defaultfilters.yesno,
+                                     defaultfilters.capfirst),
+                            empty_value=_('False'))
 
 
 class GroupMembersTable(UsersTable):
-    class Meta:
+    class Meta(object):
         name = "group_members"
         verbose_name = _("Group Members")
         table_actions = (UserFilterAction, AddMembersLink, RemoveMembers)
 
 
 class AddMembers(tables.BatchAction):
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Add User",
+            u"Add Users",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Added User",
+            u"Added Users",
+            count
+        )
+
     name = "addMember"
-    action_present = _("Add")
-    action_past = _("Added")
-    data_type_singular = _("User")
-    data_type_plural = _("Users")
     icon = "plus"
     requires_input = True
     success_url = constants.GROUPS_MANAGE_URL
@@ -210,7 +251,7 @@ class AddMembers(tables.BatchAction):
 
 
 class GroupNonMembersTable(UsersTable):
-    class Meta:
+    class Meta(object):
         name = "group_non_members"
         verbose_name = _("Non-Members")
         table_actions = (UserFilterAction, AddMembers)

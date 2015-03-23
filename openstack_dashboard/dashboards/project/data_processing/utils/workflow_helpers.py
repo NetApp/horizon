@@ -10,11 +10,17 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 
+from django.core import urlresolvers
 from django.utils.translation import ugettext_lazy as _
 
 from horizon import forms
 from horizon import workflows
+
+from openstack_dashboard.api import network
+
+LOG = logging.getLogger(__name__)
 
 
 class Parameter(object):
@@ -142,9 +148,28 @@ def safe_call(func, *args, **kwargs):
         return None
 
 
+def get_security_groups(request, security_group_ids):
+    security_groups = []
+    for group in security_group_ids or []:
+        try:
+            security_groups.append(network.security_group_get(
+                request, group))
+        except Exception:
+            LOG.info(_('Unable to retrieve security group %(group)s.') %
+                     {'group': group})
+            security_groups.append({'name': group})
+
+    return security_groups
+
+
 def get_plugin_and_hadoop_version(request):
-    plugin_name = request.REQUEST["plugin_name"]
-    hadoop_version = request.REQUEST["hadoop_version"]
+    if request.REQUEST.get("plugin_name"):
+        plugin_name = request.REQUEST["plugin_name"]
+        hadoop_version = request.REQUEST["hadoop_version"]
+    else:
+        resolver_match = urlresolvers.resolve(request.path)
+        plugin_name = resolver_match.kwargs["plugin_name"]
+        hadoop_version = resolver_match.kwargs["hadoop_version"]
     return (plugin_name, hadoop_version)
 
 
@@ -172,7 +197,7 @@ class PluginAndVersionMixin(object):
         for plugin in plugins:
             field_name = plugin.name + "_version"
             choice_field = forms.ChoiceField(
-                label=_("Hadoop Version"),
+                label=_("Version"),
                 choices=[(version, version) for version in plugin.versions],
                 widget=forms.Select(
                     attrs={"class": "plugin_version_choice "

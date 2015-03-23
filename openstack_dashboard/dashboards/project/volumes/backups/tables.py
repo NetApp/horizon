@@ -15,6 +15,7 @@ from django.template.defaultfilters import title  # noqa
 from django.utils import html
 from django.utils import http
 from django.utils import safestring
+from django.utils.translation import pgettext_lazy
 from django.utils.translation import ugettext_lazy as _
 
 from horizon import tables
@@ -85,7 +86,7 @@ class UpdateRow(tables.Row):
         backup = cinder.volume_backup_get(request, backup_id)
         try:
             backup.volume = cinder.volume_get(request,
-                                               backup.volume_id)
+                                              backup.volume_id)
         except Exception:
             pass
         return backup
@@ -102,6 +103,16 @@ class BackupsTable(tables.DataTable):
         ("restoring", None),
         ("error", False),
     )
+    STATUS_DISPLAY_CHOICES = (
+        ("available", pgettext_lazy("Current status of a Volume Backup",
+                                    u"Available")),
+        ("error", pgettext_lazy("Current status of a Volume Backup",
+                                u"Error")),
+        ("creating", pgettext_lazy("Current status of a Volume Backup",
+                                   u"Creating")),
+        ("restoring", pgettext_lazy("Current status of a Volume Backup",
+                                    u"Restoring")),
+    )
     name = tables.Column("name",
                          verbose_name=_("Name"),
                          link="horizon:project:volumes:backups:detail")
@@ -112,16 +123,16 @@ class BackupsTable(tables.DataTable):
                          verbose_name=_("Size"),
                          attrs={'data-type': 'size'})
     status = tables.Column("status",
-                           filters=(title,),
                            verbose_name=_("Status"),
                            status=True,
-                           status_choices=STATUS_CHOICES)
+                           status_choices=STATUS_CHOICES,
+                           display_choices=STATUS_DISPLAY_CHOICES)
     volume_name = BackupVolumeNameColumn("name",
                                          verbose_name=_("Volume Name"),
                                          link="horizon:project"
                                               ":volumes:volumes:detail")
 
-    class Meta:
+    class Meta(object):
         name = "volume_backups"
         verbose_name = _("Volume Backups")
         status_columns = ("status",)

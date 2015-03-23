@@ -21,6 +21,7 @@ from horizon import tables
 
 from openstack_dashboard import api
 from openstack_dashboard import policy
+from openstack_dashboard.usage import quotas
 from openstack_dashboard.utils import filters
 
 
@@ -77,6 +78,15 @@ class CreateGroup(tables.LinkAction):
         else:
             policy = (("compute", "compute_extension:security_groups"),)
 
+        usages = quotas.tenant_quota_usages(request)
+        if usages['security_groups']['available'] <= 0:
+            if "disabled" not in self.classes:
+                self.classes = [c for c in self.classes] + ["disabled"]
+                self.verbose_name = _("Create Security Group (Quota exceeded)")
+        else:
+            self.verbose_name = _("Create Security Group")
+            self.classes = [c for c in self.classes if c != "disabled"]
+
         return POLICY_CHECK(policy, request, target={})
 
 
@@ -118,6 +128,15 @@ class ManageRules(policy.PolicyTargetMixin, tables.LinkAction):
         return POLICY_CHECK(policy, request, policy_target)
 
 
+class SecurityGroupsFilterAction(tables.FilterAction):
+
+    def filter(self, table, security_groups, filter_string):
+        """Naive case-insensitive search."""
+        query = filter_string.lower()
+        return [security_group for security_group in security_groups
+                if query in security_group.name.lower()]
+
+
 class SecurityGroupsTable(tables.DataTable):
     name = tables.Column("name", verbose_name=_("Name"))
     description = tables.Column("description", verbose_name=_("Description"))
@@ -125,10 +144,10 @@ class SecurityGroupsTable(tables.DataTable):
     def sanitize_id(self, obj_id):
         return filters.get_int_or_uuid(obj_id)
 
-    class Meta:
+    class Meta(object):
         name = "security_groups"
         verbose_name = _("Security Groups")
-        table_actions = (CreateGroup, DeleteGroup)
+        table_actions = (CreateGroup, DeleteGroup, SecurityGroupsFilterAction)
         row_actions = (ManageRules, EditGroup, DeleteGroup)
 
 
@@ -185,17 +204,19 @@ class DeleteRule(tables.DeleteAction):
                        "security_groups:detail", args=[sg_id])
 
 
-def get_remote(rule):
+def get_remote_ip_prefix(rule):
     if 'cidr' in rule.ip_range:
         if rule.ip_range['cidr'] is None:
             range = '::/0' if rule.ethertype == 'IPv6' else '0.0.0.0/0'
         else:
             range = rule.ip_range['cidr']
         return range + ' (CIDR)'
-    elif 'name' in rule.group:
-        return rule.group['name']
     else:
         return None
+
+
+def get_remote_security_group(rule):
+    return rule.group.get('name')
 
 
 def get_port_range(rule):
@@ -245,7 +266,11 @@ class RulesTable(tables.DataTable):
                              filters=(filter_protocol,))
     port_range = tables.Column(get_port_range,
                                verbose_name=_("Port Range"))
-    remote = tables.Column(get_remote, verbose_name=_("Remote"))
+    remote_ip_prefix = tables.Column(get_remote_ip_prefix,
+                                     verbose_name=_("Remote IP Prefix"))
+    remote_security_group = tables.Column(get_remote_security_group,
+                                          verbose_name=_("Remote Security"
+                                                         " Group"))
 
     def sanitize_id(self, obj_id):
         return filters.get_int_or_uuid(obj_id)
@@ -253,7 +278,7 @@ class RulesTable(tables.DataTable):
     def get_object_display(self, rule):
         return unicode(rule)
 
-    class Meta:
+    class Meta(object):
         name = "rules"
         verbose_name = _("Security Group Rules")
         table_actions = (CreateRule, DeleteRule)

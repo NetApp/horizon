@@ -11,8 +11,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-#
-# @author: KC Wang, Big Switch Networks
 
 from django.core.urlresolvers import reverse_lazy
 from django.utils.translation import ugettext_lazy as _
@@ -37,14 +35,12 @@ class RulesTab(tabs.TableTab):
     def get_rulestable_data(self):
         try:
             tenant_id = self.request.user.tenant_id
-            rules = api.fwaas.rule_list(self.tab_group.request,
-                                        tenant_id=tenant_id)
+            request = self.tab_group.request
+            rules = api.fwaas.rule_list_for_tenant(request, tenant_id)
         except Exception:
             rules = []
             exceptions.handle(self.tab_group.request,
                               _('Unable to retrieve rules list.'))
-        for r in rules:
-            r.set_id_as_name_if_empty()
 
         return rules
 
@@ -58,14 +54,12 @@ class PoliciesTab(tabs.TableTab):
     def get_policiestable_data(self):
         try:
             tenant_id = self.request.user.tenant_id
-            policies = api.fwaas.policy_list(self.tab_group.request,
-                                             tenant_id=tenant_id)
+            request = self.tab_group.request
+            policies = api.fwaas.policy_list_for_tenant(request, tenant_id)
         except Exception:
             policies = []
             exceptions.handle(self.tab_group.request,
                               _('Unable to retrieve policies list.'))
-        for p in policies:
-            p.set_id_as_name_if_empty()
 
         return policies
 
@@ -79,15 +73,12 @@ class FirewallsTab(tabs.TableTab):
     def get_firewallstable_data(self):
         try:
             tenant_id = self.request.user.tenant_id
-            firewalls = api.fwaas.firewall_list(self.tab_group.request,
-                                                tenant_id=tenant_id)
+            request = self.tab_group.request
+            firewalls = api.fwaas.firewall_list_for_tenant(request, tenant_id)
         except Exception:
             firewalls = []
             exceptions.handle(self.tab_group.request,
                               _('Unable to retrieve firewall list.'))
-
-        for f in firewalls:
-            f.set_id_as_name_if_empty()
 
         return firewalls
 

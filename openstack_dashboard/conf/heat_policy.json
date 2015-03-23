@@ -4,6 +4,7 @@
 
     "cloudformation:ListStacks": "rule:deny_stack_user",
     "cloudformation:CreateStack": "rule:deny_stack_user",
+    "cloudformation:PreviewStack": "rule:deny_stack_user",
     "cloudformation:DescribeStacks": "rule:deny_stack_user",
     "cloudformation:DeleteStack": "rule:deny_stack_user",
     "cloudformation:UpdateStack": "rule:deny_stack_user",
@@ -14,6 +15,9 @@
     "cloudformation:DescribeStackResource": "",
     "cloudformation:DescribeStackResources": "rule:deny_stack_user",
     "cloudformation:ListStackResources": "rule:deny_stack_user",
+    "cloudformation:CheckStack": "rule:deny_stack_user",
+    "cloudformation:SuspendStack": "rule:deny_stack_user",
+    "cloudformation:ResumeStack": "rule:deny_stack_user",
 
     "cloudwatch:DeleteAlarms": "rule:deny_stack_user",
     "cloudwatch:DescribeAlarmHistory": "rule:deny_stack_user",

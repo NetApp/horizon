@@ -23,11 +23,12 @@ from django.views import generic
 import six
 
 from horizon import exceptions
+from horizon.forms import views as hz_views
 from horizon.forms.views import ADD_TO_FIELD_HEADER  # noqa
 from horizon import messages
 
 
-class WorkflowView(generic.TemplateView):
+class WorkflowView(hz_views.ModalBackdropMixin, generic.TemplateView):
     """A generic class-based view which handles the intricacies of workflow
     processing with minimal user configuration.
 
@@ -60,6 +61,7 @@ class WorkflowView(generic.TemplateView):
     step_errors = {}
 
     def __init__(self):
+        super(WorkflowView, self).__init__()
         if not self.workflow_class:
             raise AttributeError("You must set the workflow_class attribute "
                                  "on %s." % self.__class__.__name__)
@@ -201,10 +203,12 @@ class WorkflowView(generic.TemplateView):
             messages.error(request, msg)
         if "HTTP_X_HORIZON_ADD_TO_FIELD" in self.request.META:
             field_id = self.request.META["HTTP_X_HORIZON_ADD_TO_FIELD"]
-            data = [self.get_object_id(workflow.object),
-                    self.get_object_display(workflow.object)]
-            response = http.HttpResponse(json.dumps(data))
-            response["X-Horizon-Add-To-Field"] = field_id
+            response = http.HttpResponse()
+            if workflow.object:
+                data = [self.get_object_id(workflow.object),
+                        self.get_object_display(workflow.object)]
+                response.content = json.dumps(data)
+                response["X-Horizon-Add-To-Field"] = field_id
             return response
         next_url = self.request.REQUEST.get(workflow.redirect_param_name, None)
         return shortcuts.redirect(next_url or workflow.get_success_url())

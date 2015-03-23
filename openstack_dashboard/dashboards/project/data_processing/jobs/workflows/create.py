@@ -2,7 +2,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,22 +14,30 @@
 import json
 import logging
 
+from django.core import urlresolvers
 from django.utils.translation import ugettext_lazy as _
 
 from horizon import exceptions
 from horizon import forms
+from horizon.forms import fields
 from horizon import workflows
 
+from openstack_dashboard.dashboards.project.data_processing \
+    .utils import helpers
 from openstack_dashboard.api import sahara as saharaclient
 
 
 LOG = logging.getLogger(__name__)
 
+JOB_BINARY_CREATE_URL = ("horizon:project:data_processing.job_binaries"
+                         ":create-job-binary")
+
 
 class AdditionalLibsAction(workflows.Action):
-
-    lib_binaries = forms.ChoiceField(label=_("Choose libraries"),
-                                     required=False)
+    lib_binaries = forms.DynamicChoiceField(
+        label=_("Choose libraries"),
+        required=False,
+        add_item_link=JOB_BINARY_CREATE_URL)
 
     lib_ids = forms.CharField(
         required=False,
@@ -44,34 +52,55 @@ class AdditionalLibsAction(workflows.Action):
 
         return choices
 
-    class Meta:
+    class Meta(object):
         name = _("Libs")
         help_text_template = (
             "project/data_processing.jobs/_create_job_libs_help.html")
 
 
 class GeneralConfigAction(workflows.Action):
-
     job_name = forms.CharField(label=_("Name"))
 
-    job_type = forms.ChoiceField(label=_("Job Type"))
+    job_type = forms.ChoiceField(label=_("Job Type"),
+                                 widget=forms.Select(attrs={
+                                     'class': 'switchable',
+                                     'data-slug': 'jobtype'
+                                 }))
 
-    main_binary = forms.ChoiceField(label=_("Choose a main binary"),
-                                    required=False,
-                                    help_text=_("Choose the binary which "
-                                                "should be used in this "
-                                                "Job."))
+    main_binary = forms.DynamicChoiceField(
+        label=_("Choose a main binary"),
+        required=False,
+        help_text=_("Choose the binary which "
+                    "should be used in this Job."),
+        add_item_link=JOB_BINARY_CREATE_URL,
+        widget=fields.DynamicSelectWidget(
+            attrs={
+                'class': 'switched',
+                'data-switch-on': 'jobtype',
+                'data-jobtype-pig': _("Choose a main binary"),
+                'data-jobtype-hive': _("Choose a main binary"),
+                'data-jobtype-spark': _("Choose a main binary"),
+                'data-jobtype-mapreduce.streaming': _("Choose a main binary")
+            }))
 
     job_description = forms.CharField(label=_("Description"),
                                       required=False,
-                                      widget=forms.Textarea)
+                                      widget=forms.Textarea(attrs={'rows': 4}))
+
+    def __init__(self, request, context, *args, **kwargs):
+        super(GeneralConfigAction,
+              self).__init__(request, context, *args, **kwargs)
+        resolver_match = urlresolvers.resolve(request.path)
+        if "guide_job_type" in resolver_match.kwargs:
+            self.fields["job_type"].initial = (
+                resolver_match.kwargs["guide_job_type"].lower())
 
     def populate_job_type_choices(self, request, context):
-        choices = [("Pig", _("Pig")), ("Hive", _("Hive")),
-                   ("Spark", _("Spark")),
-                   ("MapReduce", _("MapReduce")),
-                   ("MapReduce.Streaming", _("Streaming MapReduce")),
-                   ("Java", _("Java Action"))]
+        choices = [("pig", _("Pig")), ("hive", _("Hive")),
+                   ("spark", _("Spark")),
+                   ("mapreduce", _("MapReduce")),
+                   ("mapreduce.streaming", _("Streaming MapReduce")),
+                   ("java", _("Java Action"))]
         return choices
 
     def populate_main_binary_choices(self, request, context):
@@ -91,8 +120,8 @@ class GeneralConfigAction(workflows.Action):
 
         return cleaned_data
 
-    class Meta:
-        name = _("Create Job")
+    class Meta(object):
+        name = _("Create Job Template")
         help_text_template = (
             "project/data_processing.jobs/_create_job_help.html")
 
@@ -100,6 +129,14 @@ class GeneralConfigAction(workflows.Action):
 class GeneralConfig(workflows.Step):
     action_class = GeneralConfigAction
     contributes = ("job_name", "job_type", "job_description", "main_binary")
+
+    def contribute(self, data, context):
+        for k, v in data.items():
+            if k == "job_type":
+                context[k] = helpers.JOB_TYPE_MAP[v][1]
+            else:
+                context[k] = v
+        return context
 
 
 class ConfigureLibs(workflows.Step):
@@ -115,10 +152,10 @@ class ConfigureLibs(workflows.Step):
 
 class CreateJob(workflows.Workflow):
     slug = "create_job"
-    name = _("Create Job")
+    name = _("Create Job Template")
     finalize_button_name = _("Create")
     success_message = _("Job created")
-    failure_message = _("Could not create job")
+    failure_message = _("Could not create job template")
     success_url = "horizon:project:data_processing.jobs:index"
     default_steps = (GeneralConfig, ConfigureLibs)
 
@@ -134,13 +171,21 @@ class CreateJob(workflows.Workflow):
             main_locations.append(context["main_binary"])
 
         try:
-            saharaclient.job_create(
+            job = saharaclient.job_create(
                 request,
                 context["job_name"],
                 context["job_type"],
                 main_locations,
                 lib_locations,
                 context["job_description"])
+
+            hlps = helpers.Helpers(request)
+            if hlps.is_from_guide():
+                request.session["guide_job_id"] = job.id
+                request.session["guide_job_type"] = context["job_type"]
+                request.session["guide_job_name"] = context["job_name"]
+                self.success_url = (
+                    "horizon:project:data_processing.wizard:jobex_guide")
             return True
         except Exception:
             exceptions.handle(request)

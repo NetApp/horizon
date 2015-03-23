@@ -20,7 +20,7 @@ from horizon.templatetags import sizeformat
 
 class AdminHypervisorsTable(tables.DataTable):
     hostname = tables.Column("hypervisor_hostname",
-                             link=("horizon:admin:hypervisors:detail"),
+                             link="horizon:admin:hypervisors:detail",
                              attrs={'data-type': 'naturalSort'},
                              verbose_name=_("Hostname"))
 
@@ -44,12 +44,12 @@ class AdminHypervisorsTable(tables.DataTable):
                            filters=(sizeformat.mb_float_format,))
 
     local_used = tables.Column('local_gb_used',
-                               verbose_name=_("Storage (used)"),
+                               verbose_name=_("Local Storage (used)"),
                                attrs={'data-type': 'size'},
                                filters=(sizeformat.diskgbformat,))
 
     local = tables.Column('local_gb',
-                          verbose_name=_("Storage (total)"),
+                          verbose_name=_("Local Storage (total)"),
                           attrs={'data-type': 'size'},
                           filters=(sizeformat.diskgbformat,))
 
@@ -57,16 +57,17 @@ class AdminHypervisorsTable(tables.DataTable):
                                 verbose_name=_("Instances"))
 
     def get_object_id(self, hypervisor):
-        return hypervisor.hypervisor_hostname
+        return "%s_%s" % (hypervisor.id,
+                          hypervisor.hypervisor_hostname)
 
-    class Meta:
+    class Meta(object):
         name = "hypervisors"
         verbose_name = _("Hypervisors")
 
 
 class AdminHypervisorInstancesTable(tables.DataTable):
     name = tables.Column("name",
-                         link=("horizon:admin:instances:detail"),
+                         link="horizon:admin:instances:detail",
                          verbose_name=_("Instance Name"))
 
     instance_id = tables.Column("uuid",
@@ -75,6 +76,6 @@ class AdminHypervisorInstancesTable(tables.DataTable):
     def get_object_id(self, server):
         return server['uuid']
 
-    class Meta:
+    class Meta(object):
         name = "hypervisor_instances"
         verbose_name = _("Hypervisor Instances")

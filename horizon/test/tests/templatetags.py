@@ -53,7 +53,7 @@ class TemplateTagTests(test.TestCase):
         """Test if site_branding tag renders the correct setting."""
         rendered_str = self.render_template_tag("site_branding", "branding")
         self.assertEqual(settings.SITE_BRANDING, rendered_str.strip(),
-                        "tag site_branding renders %s" % rendered_str.strip())
+                         "tag site_branding renders %s" % rendered_str.strip())
 
     def test_size_format_filters(self):
         size_str = ('5|diskgbformat', '10|diskgbformat',
@@ -87,8 +87,8 @@ class TemplateTagTests(test.TestCase):
                       'val2': 'hellotrunc',
                       'val3': 'four'}
 
-        text = ('{{test.val1|truncate:1}}#{{test.val2|truncate:4}}#'
-                '{{test.val3|truncate:10}}')
+        text = ('{{ test.val1|truncate:1 }}#{{ test.val2|truncate:4 }}#'
+                '{{ test.val3|truncate:10 }}')
 
         expected = u' h#h...#four'
         rendered_str = self.render_template(tag_require='truncate_filter',
@@ -101,8 +101,8 @@ class TemplateTagTests(test.TestCase):
                       'val2': 1000,
                       'val3': float('inf')}
 
-        text = ('{{test.val1|quota:"TB"}}#{{test.val2|quota}}#'
-                '{{test.val3|quota}}')
+        text = ('{{ test.val1|quota:"TB" }}#{{ test.val2|quota }}#'
+                '{{ test.val3|quota }}')
 
         expected = u' 100 TB Available#1000 Available#No Limit'
 
@@ -115,7 +115,7 @@ class TemplateTagTests(test.TestCase):
         text = "{% horizon_main_nav %}"
         expected = """
                 <div class='clearfix'>
-                    <ul class=\"nav nav-tabs\">
+                    <ul class=\"nav nav-tabs\" role=\"tablist\">
                         <li>
                             <a href=\"/cats/\" tabindex='1'>Cats</a>
                         </li>

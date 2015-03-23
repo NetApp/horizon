@@ -38,10 +38,8 @@ IMAGE_FORMAT_CHOICES = IMAGE_BACKEND_SETTINGS.get('image_formats', [])
 
 class CreateImageForm(forms.SelfHandlingForm):
     name = forms.CharField(max_length=255, label=_("Name"))
-    description = forms.CharField(widget=forms.widgets.Textarea(
-        attrs={'class': 'modal-body-fixed-width', 'rows': 4}),
-        label=_("Description"),
-        required=False)
+    description = forms.CharField(max_length=255, label=_("Description"),
+                                  required=False)
 
     source_type = forms.ChoiceField(
         label=_('Image Source'),
@@ -82,22 +80,18 @@ class CreateImageForm(forms.SelfHandlingForm):
                                         'ng-model': 'diskFormat'}))
     architecture = forms.CharField(max_length=255, label=_("Architecture"),
                                    required=False)
-    minimum_disk = forms.IntegerField(label=_("Minimum Disk (GB)"),
-                                    min_value=0,
-                                    help_text=_('The minimum disk size'
-                                            ' required to boot the'
-                                            ' image. If unspecified, this'
-                                            ' value defaults to 0'
-                                            ' (no minimum).'),
-                                    required=False)
-    minimum_ram = forms.IntegerField(label=_("Minimum RAM (MB)"),
-                                    min_value=0,
-                                    help_text=_('The minimum memory size'
-                                            ' required to boot the'
-                                            ' image. If unspecified, this'
-                                            ' value defaults to 0 (no'
-                                            ' minimum).'),
-                                    required=False)
+    minimum_disk = forms.IntegerField(
+        label=_("Minimum Disk (GB)"),
+        min_value=0,
+        help_text=_('The minimum disk size required to boot the image. '
+                    'If unspecified, this value defaults to 0 (no minimum).'),
+        required=False)
+    minimum_ram = forms.IntegerField(
+        label=_("Minimum RAM (MB)"),
+        min_value=0,
+        help_text=_('The minimum memory size required to boot the image. '
+                    'If unspecified, this value defaults to 0 (no minimum).'),
+        required=False)
     is_public = forms.BooleanField(label=_("Public"), required=False)
     protected = forms.BooleanField(label=_("Protected"), required=False)
 
@@ -183,21 +177,29 @@ class CreateImageForm(forms.SelfHandlingForm):
         try:
             image = api.glance.image_create(request, **meta)
             messages.success(request,
-                _('Your image %s has been queued for creation.') %
-                data['name'])
+                             _('Your image %s has been queued for creation.') %
+                             data['name'])
             return image
-        except Exception:
-            exceptions.handle(request, _('Unable to create new image.'))
+        except Exception as e:
+            msg = _('Unable to create new image')
+            # TODO(nikunj2512): Fix this once it is fixed in glance client
+            if hasattr(e, 'code') and e.code == 400:
+                if "Invalid disk format" in e.details:
+                    msg = _('Unable to create new image: Invalid disk format '
+                            '%s for image.') % data['disk_format']
+                elif "Image name too long" in e.details:
+                    msg = _('Unable to create new image: Image name too long.')
+
+            exceptions.handle(request, msg)
+
+            return False
 
 
 class UpdateImageForm(forms.SelfHandlingForm):
     image_id = forms.CharField(widget=forms.HiddenInput())
     name = forms.CharField(max_length=255, label=_("Name"))
-    description = forms.CharField(
-        widget=forms.widgets.Textarea(),
-        label=_("Description"),
-        required=False,
-    )
+    description = forms.CharField(max_length=255, label=_("Description"),
+                                  required=False)
     kernel = forms.CharField(
         max_length=36,
         label=_("Kernel ID"),

@@ -2,6 +2,8 @@
 
 horizon.network_topology = {
   model: null,
+  fa_globe_glyph: '\uf0ac',
+  fa_globe_glyph_width: 15,
   svg:'#topology_canvas',
   svg_container:'#topologyCanvasContainer',
   post_messages:'#topologyMessages',
@@ -146,8 +148,10 @@ horizon.network_topology = {
     }
     $('.toggleView > .btn').each(function(){
       var $this = $(this);
-      if($this.hasClass(self.draw_mode)) {
+      if($this.data('value') === self.draw_mode) {
         $this.addClass('active');
+      } else {
+        $this.removeClass('active');
       }
     });
   },
@@ -261,7 +265,9 @@ horizon.network_topology = {
     network
       .select('.network-cidr')
       .attr('x', function(d) {
-        return self.network_height - self.element_properties.cidr_margin;
+        var padding = isExternalNetwork(d) ? self.fa_globe_glyph_width : 0;
+        return self.network_height - self.element_properties.cidr_margin -
+          padding;
       })
       .text(function(d) {
         var cidr = $.map(d.subnets,function(n, i){
@@ -269,6 +275,19 @@ horizon.network_topology = {
         });
         return cidr.join(', ');
       });
+    function isExternalNetwork(d) {
+      return d['router:external'];
+    }
+    network
+      .select('.network-type')
+      .text(function(d) {
+        return isExternalNetwork(d) ? self.fa_globe_glyph : '';
+      })
+      .attr('x', function(d) {
+        return self.network_height - self.element_properties.cidr_margin;
+      });
+
+    $('[data-toggle="tooltip"]').tooltip({container: 'body'});
 
     network.exit().remove();
 
@@ -508,17 +527,17 @@ horizon.network_topology = {
       try {
         ip_address = port.fixed_ips[0].ip_address;
       }catch(e){
-        ip_address = 'no info';
+        ip_address = gettext('None');
       }
       var device_owner = '';
       try {
         device_owner = port.device_owner.replace('network:','');
       }catch(e){
-        device_owner = 'no info';
+        device_owner = gettext('None');
       }
       object.ip_address = ip_address;
       object.device_owner = device_owner;
-      object.is_interface = (device_owner === 'router_interface') ? true : false;
+      object.is_interface = (device_owner === 'router_interface');
       ports.push(object);
     });
     var html_data = {
@@ -527,19 +546,19 @@ horizon.network_topology = {
       url:d.url,
       name:d.name,
       type:d.type,
-      type_capital:d.type.replace(/^\w/, function($0) {
-        return $0.toUpperCase();
-      }),
+      delete_label: gettext("Delete"),
       status:d.status,
       status_class:(d.status === "ACTIVE")? 'active' : 'down',
       status_label: gettext("STATUS"),
       id_label: gettext("ID"),
       interfaces_label: gettext("Interfaces"),
-      interface_label: gettext("Interface"),
-      open_console_label: gettext("open console"),
-      view_details_label: interpolate(gettext("view %s details"), [d.type])
+      delete_interface_label: gettext("Delete Interface"),
+      open_console_label: gettext("Open Console"),
+      view_details_label: gettext("View Details")
     };
     if (d.type === 'router') {
+      html_data.delete_label = gettext("Delete Router");
+      html_data.view_details_label = gettext("View Router Details");
       html_data.port = ports;
       html_data.add_interface_url = d.url + 'addinterface';
       html_data.add_interface_label = gettext("Add Interface");
@@ -548,6 +567,8 @@ horizon.network_topology = {
         table2:(ports.length > 0) ? port_tmpl : null
       });
     } else if (d.type === 'instance') {
+      html_data.delete_label = gettext("Terminate Instance");
+      html_data.view_details_label = gettext("View Instance Details");
       html_data.console_id = d.id;
       html_data.console = d.console;
       html = balloon_tmpl.render(html_data,{
@@ -582,7 +603,7 @@ horizon.network_topology = {
     }
     $balloon.find('.delete-device').click(function(e){
       var $this = $(this);
-      $this.addClass('deleting');
+      $this.prop('disabled', true);
       d3.select('#id_' + $this.data('device-id')).classed('loading',true);
       self.delete_device($this.data('type'),$this.data('device-id'));
     });

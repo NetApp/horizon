@@ -26,7 +26,7 @@ from django.conf import settings
 from django.utils.translation import pgettext_lazy
 from django.utils.translation import ugettext_lazy as _
 
-from cinderclient.v1.contrib import list_extensions as cinder_list_extensions
+from cinderclient.v2.contrib import list_extensions as cinder_list_extensions
 
 from horizon import exceptions
 from horizon.utils.memoized import memoized  # noqa
@@ -48,14 +48,7 @@ CONSUMER_CHOICES = (
     ('both', pgettext_lazy('Both of front-end and back-end', u'both')),
 )
 
-VERSIONS = base.APIVersionManager("volume", preferred_version=1)
-
-try:
-    from cinderclient.v1 import client as cinder_client_v1
-    VERSIONS.load_supported_version(1, {"client": cinder_client_v1,
-                                        "version": 1})
-except ImportError:
-    pass
+VERSIONS = base.APIVersionManager("volume", preferred_version=2)
 
 try:
     from cinderclient.v2 import client as cinder_client_v2
@@ -79,6 +72,12 @@ class BaseCinderAPIResourceWrapper(base.APIResourceWrapper):
         return (getattr(self._apiresource, 'description', None) or
                 getattr(self._apiresource, 'display_description', None))
 
+    def to_dict(self):
+        obj = {}
+        for key in self._attrs:
+            obj[key] = getattr(self._apiresource, key, None)
+        return obj
+
 
 class Volume(BaseCinderAPIResourceWrapper):
 
@@ -86,7 +85,7 @@ class Volume(BaseCinderAPIResourceWrapper):
               'volume_type', 'availability_zone', 'imageRef', 'bootable',
               'snapshot_id', 'source_volid', 'attachments', 'tenant_name',
               'os-vol-host-attr:host', 'os-vol-tenant-attr:tenant_id',
-              'metadata', 'volume_image_metadata', 'encrypted']
+              'metadata', 'volume_image_metadata', 'encrypted', 'transfer']
 
     @property
     def is_bootable(self):
@@ -136,6 +135,11 @@ class QosSpec(object):
         self.value = val
 
 
+class VolumeTransfer(base.APIResourceWrapper):
+
+    _attrs = ['id', 'name', 'created_at', 'volume_id', 'auth_key']
+
+
 @memoized
 def cinderclient(request):
     api_version = VERSIONS.get_active_version()
@@ -145,23 +149,16 @@ def cinderclient(request):
     cinder_url = ""
     try:
         # The cinder client assumes that the v2 endpoint type will be
-        # 'volumev2'. However it also allows 'volume' type as a
-        # fallback if the requested version is 2 and there is no
-        # 'volumev2' endpoint.
+        # 'volumev2'.
         if api_version['version'] == 2:
             try:
                 cinder_url = base.url_for(request, 'volumev2')
             except exceptions.ServiceCatalogException:
                 LOG.warning("Cinder v2 requested but no 'volumev2' service "
-                            "type available in Keystone catalog. Falling back "
-                            "to 'volume'.")
-        if cinder_url == "":
-            cinder_url = base.url_for(request, 'volume')
+                            "type available in Keystone catalog.")
     except exceptions.ServiceCatalogException:
         LOG.debug('no volume service configured.')
         raise
-    LOG.debug('cinderclient connection created using token "%s" and url "%s"' %
-              (request.user.token.id, cinder_url))
     c = api_version['client'].Client(request.user.username,
                                      request.user.token.id,
                                      project_id=request.user.tenant_id,
@@ -195,7 +192,17 @@ def volume_list(request, search_opts=None):
     c_client = cinderclient(request)
     if c_client is None:
         return []
-    return [Volume(v) for v in c_client.volumes.list(search_opts=search_opts)]
+
+    # build a dictionary of volume_id -> transfer
+    transfers = {t.volume_id: t
+                 for t in transfer_list(request, search_opts=search_opts)}
+
+    volumes = []
+    for v in c_client.volumes.list(search_opts=search_opts):
+        v.transfer = transfers.get(v.id)
+        volumes.append(Volume(v))
+
+    return volumes
 
 
 def volume_get(request, volume_id):
@@ -206,10 +213,18 @@ def volume_get(request, volume_id):
             instance = nova.server_get(request, attachment['server_id'])
             attachment['instance_name'] = instance.name
         else:
-            # Nova volume can occasionally send back error'd attachments
-            # the lack a server_id property; to work around that we'll
+            # Nova volume can occasionally send attachments in error state
+            # that lack a server_id property; to work around that we'll
             # give the attached instance a generic name.
             attachment['instance_name'] = _("Unknown instance")
+
+    volume_data.transfer = None
+    if volume_data.status == 'awaiting-transfer':
+        for transfer in transfer_list(request):
+            if transfer.volume_id == volume_id:
+                volume_data.transfer = transfer
+                break
+
     return Volume(volume_data)
 
 
@@ -239,13 +254,14 @@ def volume_delete(request, volume_id):
 
 
 def volume_retype(request, volume_id, new_type, migration_policy):
-
-    if not retype_supported():
-        raise exceptions.NotAvailable
-
     return cinderclient(request).volumes.retype(volume_id,
                                                 new_type,
                                                 migration_policy)
+
+
+def volume_set_bootable(request, volume_id, bootable):
+    return cinderclient(request).volumes.set_bootable(volume_id,
+                                                      bootable)
 
 
 def volume_update(request, volume_id, name, description):
@@ -267,6 +283,10 @@ def volume_upload_to_image(request, volume_id, force, image_name,
                                                          image_name,
                                                          container_format,
                                                          disk_format)
+
+
+def volume_get_encryption_metadata(request, volume_id):
+    return cinderclient(request).volumes.get_encryption_metadata(volume_id)
 
 
 def volume_snapshot_get(request, snapshot_id):
@@ -356,6 +376,32 @@ def volume_backup_restore(request, backup_id, volume_id):
                                                   volume_id=volume_id)
 
 
+def volume_manage(request,
+                  host,
+                  identifier,
+                  id_type,
+                  name,
+                  description,
+                  volume_type,
+                  availability_zone,
+                  metadata,
+                  bootable):
+    source = {id_type: identifier}
+    return cinderclient(request).volumes.manage(
+        host=host,
+        ref=source,
+        name=name,
+        description=description,
+        volume_type=volume_type,
+        availability_zone=availability_zone,
+        metadata=metadata,
+        bootable=bootable)
+
+
+def volume_unmanage(request, volume_id):
+    return cinderclient(request).volumes.unmanage(volume=volume_id)
+
+
 def tenant_quota_get(request, tenant_id):
     c_client = cinderclient(request)
     if c_client is None:
@@ -411,6 +457,23 @@ def volume_type_delete(request, volume_type_id):
 
 def volume_type_get(request, volume_type_id):
     return cinderclient(request).volume_types.get(volume_type_id)
+
+
+def volume_encryption_type_create(request, volume_type_id, data):
+    return cinderclient(request).volume_encryption_types.create(volume_type_id,
+                                                                specs=data)
+
+
+def volume_encryption_type_delete(request, volume_type_id):
+    return cinderclient(request).volume_encryption_types.delete(volume_type_id)
+
+
+def volume_encryption_type_get(request, volume_type_id):
+    return cinderclient(request).volume_encryption_types.get(volume_type_id)
+
+
+def volume_encryption_type_list(request):
+    return cinderclient(request).volume_encryption_types.list()
 
 
 def volume_type_extra_get(request, type_id, raw=False):
@@ -484,9 +547,16 @@ def tenant_absolute_limits(request):
     limits = cinderclient(request).limits.get().absolute
     limits_dict = {}
     for limit in limits:
-        # -1 is used to represent unlimited quotas
-        if limit.value == -1:
-            limits_dict[limit.name] = float("inf")
+        if limit.value < 0:
+            # In some cases, the absolute limits data in Cinder can get
+            # out of sync causing the total.*Used limits to return
+            # negative values instead of 0. For such cases, replace
+            # negative values with 0.
+            if limit.name.startswith('total') and limit.name.endswith('Used'):
+                limits_dict[limit.name] = 0
+            else:
+                # -1 is used to represent unlimited quotas
+                limits_dict[limit.name] = float("inf")
         else:
             limits_dict[limit.name] = limit.value
     return limits_dict
@@ -517,8 +587,28 @@ def extension_supported(request, extension_name):
     return False
 
 
-@memoized
-def retype_supported():
-    """retype is only supported after cinder v2.
+def transfer_list(request, detailed=True, search_opts=None):
+    """To see all volumes transfers as an admin pass in a special
+    search option: {'all_tenants': 1}
     """
-    return version_get() >= 2
+    c_client = cinderclient(request)
+    return [VolumeTransfer(v) for v in c_client.transfers.list(
+        detailed=detailed, search_opts=search_opts)]
+
+
+def transfer_get(request, transfer_id):
+    transfer_data = cinderclient(request).transfers.get(transfer_id)
+    return VolumeTransfer(transfer_data)
+
+
+def transfer_create(request, transfer_id, name):
+    volume = cinderclient(request).transfers.create(transfer_id, name)
+    return VolumeTransfer(volume)
+
+
+def transfer_accept(request, transfer_id, auth_key):
+    return cinderclient(request).transfers.accept(transfer_id, auth_key)
+
+
+def transfer_delete(request, transfer_id):
+    return cinderclient(request).transfers.delete(transfer_id)

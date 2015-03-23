@@ -19,11 +19,13 @@ from django.template import defaultfilters as filters
 from django.utils import html
 from django.utils.http import urlencode
 from django.utils import safestring
+from django.utils.translation import pgettext_lazy
 from django.utils.translation import string_concat  # noqa
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext_lazy
 
 from horizon import exceptions
+from horizon import messages
 from horizon import tables
 
 from openstack_dashboard import api
@@ -80,19 +82,12 @@ class DeleteVolume(VolumePolicyTargetMixin, tables.DeleteAction):
     policy_rules = (("volume", "volume:delete"),)
 
     def delete(self, request, obj_id):
-        obj = self.table.get_object_by_id(obj_id)
-        name = self.table.get_object_display(obj)
-        try:
-            cinder.volume_delete(request, obj_id)
-        except Exception:
-            msg = _('Unable to delete volume "%s". One or more snapshots '
-                    'depend on it.')
-            exceptions.check_message(["snapshots", "dependent"], msg % name)
-            raise
+        cinder.volume_delete(request, obj_id)
 
     def allowed(self, request, volume=None):
         if volume:
-            return volume.status in DELETABLE_STATES
+            return (volume.status in DELETABLE_STATES and
+                    not getattr(volume, 'has_snapshot', False))
         return True
 
 
@@ -100,7 +95,7 @@ class CreateVolume(tables.LinkAction):
     name = "create"
     verbose_name = _("Create Volume")
     url = "horizon:project:volumes:volumes:create"
-    classes = ("ajax-modal",)
+    classes = ("ajax-modal", "btn-create")
     icon = "plus"
     policy_rules = (("volume", "volume:create"),)
     ajax = True
@@ -146,7 +141,7 @@ class ExtendVolume(VolumePolicyTargetMixin, tables.LinkAction):
 
 class EditAttachments(tables.LinkAction):
     name = "attachments"
-    verbose_name = _("Edit Attachments")
+    verbose_name = _("Manage Attachments")
     url = "horizon:project:volumes:volumes:attach"
     classes = ("ajax-modal",)
     icon = "pencil"
@@ -184,13 +179,24 @@ class CreateSnapshot(VolumePolicyTargetMixin, tables.LinkAction):
             limits = {}
 
         snapshots_available = (limits.get('maxTotalSnapshots', float("inf"))
-                             - limits.get('totalSnapshotsUsed', 0))
+                               - limits.get('totalSnapshotsUsed', 0))
 
         if snapshots_available <= 0 and "disabled" not in self.classes:
             self.classes = [c for c in self.classes] + ['disabled']
             self.verbose_name = string_concat(self.verbose_name, ' ',
-                                                  _("(Quota exceeded)"))
+                                              _("(Quota exceeded)"))
         return volume.status in ("available", "in-use")
+
+
+class CreateTransfer(VolumePolicyTargetMixin, tables.LinkAction):
+    name = "create_transfer"
+    verbose_name = _("Create Transfer")
+    url = "horizon:project:volumes:volumes:create_transfer"
+    classes = ("ajax-modal",)
+    policy_rules = (("volume", "volume:create_transfer"),)
+
+    def allowed(self, request, volume=None):
+        return volume.status == "available"
 
 
 class CreateBackup(VolumePolicyTargetMixin, tables.LinkAction):
@@ -217,8 +223,8 @@ class UploadToImage(VolumePolicyTargetMixin, tables.LinkAction):
         has_image_service_perm = \
             request.user.has_perm('openstack.services.image')
 
-        return volume.status in ("available", "in-use") and \
-               has_image_service_perm
+        return (volume.status in ("available", "in-use") and
+                has_image_service_perm)
 
 
 class EditVolume(VolumePolicyTargetMixin, tables.LinkAction):
@@ -242,9 +248,49 @@ class RetypeVolume(VolumePolicyTargetMixin, tables.LinkAction):
     policy_rules = (("volume", "volume:retype"),)
 
     def allowed(self, request, volume=None):
-        retype_supported = cinder.retype_supported()
+        return volume.status in ("available", "in-use")
 
-        return volume.status in ("available", "in-use") and retype_supported
+
+class AcceptTransfer(tables.LinkAction):
+    name = "accept_transfer"
+    verbose_name = _("Accept Transfer")
+    url = "horizon:project:volumes:volumes:accept_transfer"
+    classes = ("ajax-modal",)
+    icon = "exchange"
+    policy_rules = (("volume", "volume:accept_transfer"),)
+    ajax = True
+
+    def single(self, table, request, object_id=None):
+        return HttpResponse(self.render())
+
+
+class DeleteTransfer(VolumePolicyTargetMixin, tables.Action):
+    # This class inherits from tables.Action instead of the more obvious
+    # tables.DeleteAction due to the confirmation message.  When the delete
+    # is successful, DeleteAction automatically appends the name of the
+    # volume to the message, e.g. "Deleted volume transfer 'volume'". But
+    # we are deleting the volume *transfer*, whose name is different.
+    name = "delete_transfer"
+    verbose_name = _("Cancel Transfer")
+    policy_rules = (("volume", "volume:delete_transfer"),)
+    classes = ('btn-danger',)
+
+    def allowed(self, request, volume):
+        return (volume.status == "awaiting-transfer" and
+                getattr(volume, 'transfer', None))
+
+    def single(self, table, request, volume_id):
+        volume = table.get_object_by_id(volume_id)
+        try:
+            cinder.transfer_delete(request, volume.transfer.id)
+            if volume.transfer.name:
+                msg = _('Successfully deleted volume transfer "%s"'
+                        ) % volume.transfer.name
+            else:
+                msg = _("Successfully deleted volume transfer")
+            messages.success(request, msg)
+        except Exception:
+            exceptions.handle(request, _("Unable to delete volume transfer."))
 
 
 class UpdateRow(tables.Row):
@@ -295,7 +341,7 @@ class AttachmentColumn(tables.Column):
             # without the server name...
             instance = get_attachment_name(request, attachment)
             vals = {"instance": instance,
-                    "dev": html.escape(attachment["device"])}
+                    "dev": html.escape(attachment.get("device", ""))}
             attachments.append(link % vals)
         return safestring.mark_safe(", ".join(attachments))
 
@@ -306,7 +352,7 @@ def get_volume_type(volume):
 
 def get_encrypted_value(volume):
     if not hasattr(volume, 'encrypted') or volume.encrypted is None:
-        return "-"
+        return _("-")
     elif volume.encrypted is False:
         return _("No")
     else:
@@ -321,6 +367,16 @@ class VolumesTableBase(tables.DataTable):
         ("error", False),
         ("error_extending", False),
     )
+    STATUS_DISPLAY_CHOICES = (
+        ("available", pgettext_lazy("Current status of a Volume",
+                                    u"Available")),
+        ("in-use", pgettext_lazy("Current status of a Volume", u"In-use")),
+        ("error", pgettext_lazy("Current status of a Volume", u"Error")),
+        ("creating", pgettext_lazy("Current status of a Volume",
+                                   u"Creating")),
+        ("error_extending", pgettext_lazy("Current status of a Volume",
+                                          u"Error Extending")),
+    )
     name = tables.Column("name",
                          verbose_name=_("Name"),
                          link="horizon:project:volumes:volumes:detail")
@@ -331,10 +387,10 @@ class VolumesTableBase(tables.DataTable):
                          verbose_name=_("Size"),
                          attrs={'data-type': 'size'})
     status = tables.Column("status",
-                           filters=(filters.title,),
                            verbose_name=_("Status"),
                            status=True,
-                           status_choices=STATUS_CHOICES)
+                           status_choices=STATUS_CHOICES,
+                           display_choices=STATUS_DISPLAY_CHOICES)
 
     def get_object_display(self, obj):
         return obj.name
@@ -354,37 +410,56 @@ class VolumesTable(VolumesTableBase):
                          verbose_name=_("Name"),
                          link="horizon:project:volumes:volumes:detail")
     volume_type = tables.Column(get_volume_type,
-                                verbose_name=_("Type"),
-                                empty_value="-")
+                                verbose_name=_("Type"))
     attachments = AttachmentColumn("attachments",
-                                verbose_name=_("Attached To"))
+                                   verbose_name=_("Attached To"))
     availability_zone = tables.Column("availability_zone",
-                         verbose_name=_("Availability Zone"))
+                                      verbose_name=_("Availability Zone"))
     bootable = tables.Column('is_bootable',
-                         verbose_name=_("Bootable"),
-                         filters=(filters.yesno, filters.capfirst))
+                             verbose_name=_("Bootable"),
+                             filters=(filters.yesno, filters.capfirst))
     encryption = tables.Column(get_encrypted_value,
-                               verbose_name=_("Encrypted"))
+                               verbose_name=_("Encrypted"),
+                               link="horizon:project:volumes:"
+                                    "volumes:encryption_detail")
 
-    class Meta:
+    class Meta(object):
         name = "volumes"
         verbose_name = _("Volumes")
         status_columns = ["status"]
         row_class = UpdateRow
-        table_actions = (CreateVolume, DeleteVolume, VolumesFilterAction)
+        table_actions = (CreateVolume, AcceptTransfer, DeleteVolume,
+                         VolumesFilterAction)
         row_actions = (EditVolume, ExtendVolume, LaunchVolume, EditAttachments,
                        CreateSnapshot, CreateBackup, RetypeVolume,
-                       UploadToImage, DeleteVolume)
+                       UploadToImage, CreateTransfer, DeleteTransfer,
+                       DeleteVolume)
 
 
 class DetachVolume(tables.BatchAction):
     name = "detach"
-    action_present = _("Detach")
-    action_past = _("Detaching")  # This action is asynchronous.
-    data_type_singular = _("Volume")
-    data_type_plural = _("Volumes")
     classes = ('btn-danger', 'btn-detach')
     policy_rules = (("compute", "compute:detach_volume"),)
+    help_text = _("The data will remain in the volume and another instance"
+                  " will be able to access the data if you attach"
+                  " this volume to it.")
+
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Detach Volume",
+            u"Detach Volumes",
+            count
+        )
+
+    # This action is asynchronous.
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Detaching Volume",
+            u"Detaching Volumes",
+            count
+        )
 
     def action(self, request, obj_id):
         attachment = self.table.get_object_by_id(obj_id)
@@ -426,7 +501,7 @@ class AttachmentsTable(tables.DataTable):
                 return obj
         raise ValueError('No match found for the id "%s".' % obj_id)
 
-    class Meta:
+    class Meta(object):
         name = "attachments"
         verbose_name = _("Attachments")
         table_actions = (DetachVolume,)

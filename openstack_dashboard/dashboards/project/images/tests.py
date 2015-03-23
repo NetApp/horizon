@@ -46,6 +46,8 @@ class ImagesAndSnapshotsTests(test.TestCase):
 
         res = self.client.get(INDEX_URL)
         self.assertTemplateUsed(res, 'project/images/index.html')
+        self.assertContains(res, 'help_text="Deleted images'
+                                 ' are not recoverable."')
         self.assertIn('images_table', res.context)
         images_table = res.context['images_table']
         images = images_table.data
@@ -56,7 +58,7 @@ class ImagesAndSnapshotsTests(test.TestCase):
         row_actions = images_table.get_row_actions(images[1])
         self.assertTrue(len(row_actions), 2)
         self.assertTrue('delete_image' not in
-                [a.name for a in row_actions])
+                        [a.name for a in row_actions])
         row_actions = images_table.get_row_actions(images[2])
         self.assertTrue(len(row_actions), 3)
 
@@ -126,14 +128,15 @@ class ImagesAndSnapshotsUtilsTests(test.TestCase):
         private_images = [image for image in self.images.list()
                           if (image.status == 'active' and
                               not image.is_public)]
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                                       filters={'is_public': True,
-                                                'status': 'active'}) \
-                  .AndReturn([public_images, False, False])
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                            filters={'property-owner_id': self.tenant.id,
-                                     'status': 'active'}) \
-                  .AndReturn([private_images, False, False])
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'is_public': True, 'status': 'active'}) \
+            .AndReturn([public_images, False, False])
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'property-owner_id': self.tenant.id,
+                     'status': 'active'}) \
+            .AndReturn([private_images, False, False])
 
         self.mox.ReplayAll()
 
@@ -151,18 +154,20 @@ class ImagesAndSnapshotsUtilsTests(test.TestCase):
         private_images = [image for image in self.images.list()
                           if (image.status == 'active' and
                               not image.is_public)]
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                                       filters={'is_public': True,
-                                                'status': 'active'}) \
-                  .AndReturn([public_images, False, False])
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                            filters={'property-owner_id': self.tenant.id,
-                                     'status': 'active'}) \
-                  .AndReturn([private_images, False, False])
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                            filters={'property-owner_id': 'other-tenant',
-                                     'status': 'active'}) \
-                  .AndReturn([private_images, False, False])
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'is_public': True, 'status': 'active'}) \
+            .AndReturn([public_images, False, False])
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'property-owner_id': self.tenant.id,
+                     'status': 'active'}) \
+            .AndReturn([private_images, False, False])
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'property-owner_id': 'other-tenant',
+                     'status': 'active'}) \
+            .AndReturn([private_images, False, False])
 
         self.mox.ReplayAll()
 
@@ -206,20 +211,21 @@ class ImagesAndSnapshotsUtilsTests(test.TestCase):
         private_images = [image for image in self.images.list()
                           if (image.status == 'active' and
                               not image.is_public)]
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                                       filters={'is_public': True,
-                                                'status': 'active'}) \
-                  .AndRaise(self.exceptions.glance)
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'is_public': True, 'status': 'active'}) \
+            .AndRaise(self.exceptions.glance)
         exceptions.handle(IsA(http.HttpRequest),
                           "Unable to retrieve public images.")
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                            filters={'property-owner_id': self.tenant.id,
-                                     'status': 'active'}) \
-                  .AndReturn([private_images, False, False])
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                                       filters={'is_public': True,
-                                                'status': 'active'}) \
-                  .AndReturn([public_images, False, False])
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'property-owner_id': self.tenant.id,
+                     'status': 'active'}) \
+            .AndReturn([private_images, False, False])
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'is_public': True, 'status': 'active'}) \
+            .AndReturn([public_images, False, False])
 
         self.mox.ReplayAll()
 
@@ -258,20 +264,22 @@ class ImagesAndSnapshotsUtilsTests(test.TestCase):
         private_images = [image for image in self.images.list()
                           if (image.status == 'active' and
                               not image.is_public)]
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                                       filters={'is_public': True,
-                                                'status': 'active'}) \
-                  .AndReturn([public_images, False, False])
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                            filters={'property-owner_id': self.tenant.id,
-                                     'status': 'active'}) \
-                  .AndRaise(self.exceptions.glance)
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'is_public': True, 'status': 'active'}) \
+            .AndReturn([public_images, False, False])
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'property-owner_id': self.tenant.id,
+                     'status': 'active'}) \
+            .AndRaise(self.exceptions.glance)
         exceptions.handle(IsA(http.HttpRequest),
                           "Unable to retrieve images for the current project.")
-        api.glance.image_list_detailed(IsA(http.HttpRequest),
-                            filters={'property-owner_id': self.tenant.id,
-                                     'status': 'active'}) \
-                  .AndReturn([private_images, False, False])
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest),
+            filters={'property-owner_id': self.tenant.id,
+                     'status': 'active'}) \
+            .AndReturn([private_images, False, False])
 
         self.mox.ReplayAll()
 
@@ -327,7 +335,7 @@ class SeleniumTests(test.SeleniumTestCase):
         formats = self.ui.Select(driver.find_element_by_id("id_disk_format"))
         body = formats.first_selected_option
         self.assertTrue("ISO" in body.text,
-                        "ISO should be selected when the extention is *.iso")
+                        "ISO should be selected when the extension is *.iso")
 
     @test.create_stubs({api.glance: ('image_list_detailed',)})
     def test_modal_create_image_from_file(self):
@@ -352,7 +360,7 @@ class SeleniumTests(test.SeleniumTestCase):
         formats = self.ui.Select(driver.find_element_by_id("id_disk_format"))
         body = formats.first_selected_option
         self.assertTrue("ISO" in body.text,
-                        "ISO should be selected when the extention is *.iso")
+                        "ISO should be selected when the extension is *.iso")
 
     def test_create_image_from_url(self):
         driver = self.selenium
@@ -368,7 +376,7 @@ class SeleniumTests(test.SeleniumTestCase):
         formats = self.ui.Select(driver.find_element_by_id("id_disk_format"))
         body = formats.first_selected_option
         self.assertTrue("ISO" in body.text,
-                        "ISO should be selected when the extention is *.iso")
+                        "ISO should be selected when the extension is *.iso")
 
     def test_create_image_from_file(self):
         driver = self.selenium
@@ -383,4 +391,4 @@ class SeleniumTests(test.SeleniumTestCase):
         formats = self.ui.Select(driver.find_element_by_id("id_disk_format"))
         body = formats.first_selected_option
         self.assertTrue("ISO" in body.text,
-                        "ISO should be selected when the extention is *.iso")
+                        "ISO should be selected when the extension is *.iso")

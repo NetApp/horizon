@@ -36,10 +36,10 @@ class AssociateIPAction(workflows.Action):
                                           add_item_link=ALLOCATE_URL)
     instance_id = forms.ChoiceField(label=_("Instance"))
 
-    class Meta:
+    class Meta(object):
         name = _("IP Address")
         help_text = _("Select the IP address you wish to associate with "
-                      "the selected instance.")
+                      "the selected instance or port.")
 
     def __init__(self, *args, **kwargs):
         super(AssociateIPAction, self).__init__(*args, **kwargs)
@@ -141,13 +141,24 @@ class IPAssociationWorkflow(workflows.Workflow):
     default_steps = (AssociateIP,)
 
     def format_status_message(self, message):
-        return message % self.context.get('ip_address', 'unknown IP address')
+        if "%s" in message:
+            return message % self.context.get('ip_address',
+                                              _('unknown IP address'))
+        else:
+            return message
 
     def handle(self, request, data):
         try:
             api.network.floating_ip_associate(request,
                                               data['ip_id'],
                                               data['instance_id'])
+        except neutron_exc.Conflict:
+            msg = _('The requested instance port is already'
+                    ' associated with another floating IP.')
+            exceptions.handle(request, msg)
+            self.failure_message = msg
+            return False
+
         except Exception:
             exceptions.handle(request)
             return False

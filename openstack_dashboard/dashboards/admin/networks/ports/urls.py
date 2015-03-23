@@ -15,12 +15,13 @@
 from django.conf.urls import patterns
 from django.conf.urls import url
 
-from openstack_dashboard.dashboards.project.networks.ports import views
+from openstack_dashboard.dashboards.admin.networks.ports import views
 
 PORTS = r'^(?P<port_id>[^/]+)/%s$'
 VIEW_MOD = 'openstack_dashboard.dashboards.admin.networks.ports.views'
 
 
-urlpatterns = patterns(VIEW_MOD,
+urlpatterns = patterns(
+    VIEW_MOD,
     url(PORTS % 'detail', views.DetailView.as_view(), name='detail')
 )

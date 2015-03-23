@@ -15,7 +15,8 @@
 from collections import defaultdict
 
 from django import shortcuts
-from django.views import generic
+
+from horizon import views
 
 from horizon.templatetags.horizon import has_permissions  # noqa
 
@@ -125,7 +126,7 @@ class MultiTableMixin(object):
         return handled
 
 
-class MultiTableView(MultiTableMixin, generic.TemplateView):
+class MultiTableView(MultiTableMixin, views.HorizonTemplateView):
     """A class-based generic view to handle the display and processing of
     multiple :class:`~horizon.tables.DataTable` classes in a single view.
 
@@ -136,6 +137,7 @@ class MultiTableView(MultiTableMixin, generic.TemplateView):
     which returns a set of data for that table; and specify a template for
     the ``template_name`` attribute.
     """
+
     def construct_tables(self):
         tables = self.get_tables().values()
         # Early out before data is loaded
@@ -226,11 +228,10 @@ class DataTableView(MultiTableView):
             return None
         param_name = filter_action.get_param_name()
         filter_string = request.POST.get(param_name)
-        filter_string_session = request.session.get(param_name)
-        changed = (filter_string is not None and
-                   filter_string_session is not None and
-                   filter_string != filter_string_session)
-        if filter_string is None and filter_string_session is not None:
+        filter_string_session = request.session.get(param_name, "")
+        changed = (filter_string is not None
+                   and filter_string != filter_string_session)
+        if filter_string is None:
             filter_string = filter_string_session
         filter_field_param = param_name + '_field'
         filter_field = request.POST.get(filter_field_param)

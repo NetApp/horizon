@@ -1,5 +1,6 @@
 horizon.instances = {
   user_decided_length: false,
+  user_volume_size: false,
   networks_selected: [],
   networks_available: [],
 
@@ -80,18 +81,21 @@ horizon.instances = {
    **/
   generate_networklist_html: function() {
     var self = this;
+    var available_network = $("#available_network");
+    var selected_network = $("#selected_network");
     var updateForm = function() {
-      var lists = $("#networkListId li").attr('data-index',100);
+      var networkListId = $("#networkListId");
+      var lists = networkListId.find("li").attr('data-index',100);
       var active_networks = $("#selected_network > li").map(function(){
         return $(this).attr("name");
       });
-      $("#networkListId input:checkbox").removeAttr('checked');
+      networkListId.find("input:checkbox").removeAttr('checked');
       active_networks.each(function(index, value){
-        $("#networkListId input:checkbox[value=" + value + "]")
+        networkListId.find("input:checkbox[value=" + value + "]")
           .prop('checked', true)
           .parents("li").attr('data-index',index);
       });
-      $("#networkListId ul").html(
+      networkListId.find("ul").html(
         lists.sort(function(a,b){
           if( $(a).data("index") < $(b).data("index")) { return -1; }
           if( $(a).data("index") > $(b).data("index")) { return 1; }
@@ -103,14 +107,14 @@ horizon.instances = {
     $("#networkListIdContainer").hide();
     self.init_network_list();
     // Make sure we don't duplicate the networks in the list
-    $("#available_network").empty();
+    available_network.empty();
     $.each(self.networks_available, function(index, value){
-      $("#available_network").append(self.generate_network_element(value.name, value.id, value.value));
+      available_network.append(self.generate_network_element(value.name, value.id, value.value));
     });
     // Make sure we don't duplicate the networks in the list
-    $("#selected_network").empty();
+    selected_network.empty();
     $.each(self.networks_selected, function(index, value){
-      $("#selected_network").append(self.generate_network_element(value.name, value.id, value.value));
+      selected_network.append(self.generate_network_element(value.name, value.id, value.value));
     });
     // $(".networklist > li").click(function(){
     //   $(this).toggleClass("ui-selected");
@@ -120,14 +124,14 @@ horizon.instances = {
       e.preventDefault();
       e.stopPropagation();
       if($this.parents("ul#available_network").length > 0) {
-        $this.parent().appendTo($("#selected_network"));
+        $this.parent().appendTo(selected_network);
       } else if ($this.parents("ul#selected_network").length > 0) {
-        $this.parent().appendTo($("#available_network"));
+        $this.parent().appendTo(available_network);
       }
       updateForm();
     });
     if ($("#networkListId > div.form-group.error").length > 0) {
-      var errortext = $("#networkListId > div.form-group.error").find("span.help-block").text();
+      var errortext = $("#networkListId > div.form-group.error span.help-block").text();
       $("#selected_network_label").before($('<div class="dynamic-error">').html(errortext));
     }
     $(".networklist").sortable({
@@ -135,10 +139,10 @@ horizon.instances = {
       placeholder: "ui-state-highlight",
       distance: 5,
       start:function(e,info){
-        $("#selected_network").addClass("dragging");
+        selected_network.addClass("dragging");
       },
       stop:function(e,info){
-        $("#selected_network").removeClass("dragging");
+        selected_network.removeClass("dragging");
         updateForm();
       }
     }).disableSelection();
@@ -150,8 +154,10 @@ horizon.instances = {
   }
 };
 
-horizon.addInitFunction(function () {
-  $(document).on('submit', '#tail_length', function (evt) {
+horizon.addInitFunction(horizon.instances.init = function () {
+  var $document = $(document);
+
+  $document.on('submit', '#tail_length', function (evt) {
     horizon.instances.user_decided_length = true;
     horizon.instances.getConsoleLog(true);
     evt.preventDefault();
@@ -161,37 +167,38 @@ horizon.addInitFunction(function () {
 
   // Handle field toggles for the Launch Instance source type field
   function update_launch_source_displayed_fields (field) {
-    var $this = $(field),
-      base_type = $this.val();
+    var $this = $(field);
+    var base_type = $this.val();
+    var elements_list;
 
     $this.closest(".form-group").nextAll().hide();
 
     switch(base_type) {
       case "image_id":
-        $("#id_image_id").closest(".form-group").show();
+        elements_list = "#id_image_id";
         break;
-
       case "instance_snapshot_id":
-        $("#id_instance_snapshot_id").closest(".form-group").show();
+        elements_list = "#id_instance_snapshot_id";
         break;
-
       case "volume_id":
-        $("#id_volume_id, #id_delete_on_terminate").closest(".form-group").show();
+        elements_list = "#id_volume_id, #id_device_name, #id_delete_on_terminate";
         break;
-
       case "volume_image_id":
-        $("#id_image_id, #id_volume_size, #id_device_name, #id_delete_on_terminate")
-          .closest(".form-group").show();
+        elements_list = "#id_image_id, #id_volume_size, #id_device_name, #id_delete_on_terminate";
         break;
-
       case "volume_snapshot_id":
-        $("#id_volume_snapshot_id, #id_device_name, #id_delete_on_terminate")
-          .closest(".form-group").show();
+        elements_list = "#id_volume_snapshot_id, #id_device_name, #id_delete_on_terminate";
         break;
     }
+    var elements_list_group = $(elements_list).closest(".form-group");
+    elements_list_group.addClass("required");
+    // marking all the fields in 'elements_list' as mandatory except '#id_device_name'
+    $("#id_device_name").closest(".form-group").removeClass("required");
+    // showing all the fields in 'elements_list'
+    elements_list_group.show();
   }
 
-  $(document).on('change', '.workflow #id_source_type', function (evt) {
+  $document.on('change', '.workflow #id_source_type', function (evt) {
     update_launch_source_displayed_fields(this);
   });
 
@@ -207,27 +214,45 @@ horizon.addInitFunction(function () {
   function update_device_size() {
     var volume_size = horizon.Quota.getSelectedFlavor().disk;
     var image = horizon.Quota.getSelectedImage();
+    var size_field = $("#id_volume_size");
 
-    if(image !== undefined) {
-      if(image.min_disk > volume_size) {
-        volume_size = image.min_disk;
+    if (image !== undefined && image.min_disk > volume_size) {
+      volume_size = image.min_disk;
+    }
+    if (image !== undefined && image.size > volume_size) {
+      volume_size = image.size;
+    }
+
+    // If the user has manually changed the volume size, do not override
+    // unless user-defined value is too small.
+    if (horizon.instances.user_volume_size) {
+      var user_value = size_field.val();
+      if (user_value > volume_size) {
+        volume_size = user_value;
       }
     }
 
     // Make sure the new value is >= the minimum allowed (1GB)
-    if(volume_size < 1) {
+    if (volume_size < 1) {
       volume_size = 1;
     }
 
-    $("#id_volume_size").val(volume_size);
+    size_field.val(volume_size);
   }
 
-  $(document).on('change', '.workflow #id_flavor', function (evt) {
+  $document.on('change', '.workflow #id_flavor', function (evt) {
     update_device_size();
   });
 
-  $(document).on('change', '.workflow #id_image_id', function (evt) {
+  $document.on('change', '.workflow #id_image_id', function (evt) {
     update_device_size();
+  });
+
+  $document.on('input', '.workflow #id_volume_size', function (evt) {
+    horizon.instances.user_volume_size = true;
+    // We only need to listen for the first user input to this field,
+    // so remove the listener after the first time it gets called.
+    $document.off('input', '.workflow #id_volume_size');
   });
 
   horizon.instances.decrypt_password = function(encrypted_password, private_key) {
@@ -236,7 +261,7 @@ horizon.addInitFunction(function () {
     return crypt.decrypt(encrypted_password);
   };
 
-  $(document).on('change', '#id_private_key_file', function (evt) {
+  $document.on('change', '#id_private_key_file', function (evt) {
     var file = evt.target.files[0];
     var reader = new FileReader();
     if (file) {
@@ -258,14 +283,16 @@ horizon.addInitFunction(function () {
     The font-family is changed because with the default policy the major I
     and minor the l cannot be distinguished.
   */
-  $(document).on('show', '#password_instance_modal', function (evt) {
-    $("#id_decrypted_password").css("font-family","monospace");
-    $("#id_decrypted_password").css("cursor","text");
+  $document.on('show.bs.modal', '#password_instance_modal', function (evt) {
+    $("#id_decrypted_password").css({
+      "font-family": "monospace",
+      "cursor": "text"
+    });
     $("#id_encrypted_password").css("cursor","text");
     $("#id_keypair_name").css("cursor","text");
   });
 
-  $(document).on('click', '#decryptpassword_button', function (evt) {
+  $document.on('click', '#decryptpassword_button', function (evt) {
     encrypted_password = $("#id_encrypted_password").val();
     private_key = $('#id_private_key').val();
     if (!private_key) {

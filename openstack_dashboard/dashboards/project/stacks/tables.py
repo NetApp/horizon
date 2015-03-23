@@ -13,7 +13,7 @@
 from django.core import urlresolvers
 from django.http import Http404  # noqa
 from django.template.defaultfilters import title  # noqa
-from django.utils.http import urlencode  # noqa
+from django.utils.translation import pgettext_lazy
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext_lazy
 
@@ -34,6 +34,89 @@ class LaunchStack(tables.LinkAction):
     classes = ("ajax-modal",)
     icon = "plus"
     policy_rules = (("orchestration", "cloudformation:CreateStack"),)
+
+
+class PreviewStack(tables.LinkAction):
+    name = "preview"
+    verbose_name = _("Preview Stack")
+    url = "horizon:project:stacks:preview_template"
+    classes = ("ajax-modal",)
+    policy_rules = (("orchestration", "cloudformation:PreviewStack"),)
+
+
+class CheckStack(tables.BatchAction):
+    name = "check"
+    verbose_name = _("Check Stack")
+    policy_rules = (("orchestration", "cloudformation:CheckStack"),)
+
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Check Stack",
+            u"Check Stacks",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Checked Stack",
+            u"Checked Stacks",
+            count
+        )
+
+    def action(self, request, stack_id):
+        api.heat.action_check(request, stack_id)
+
+
+class SuspendStack(tables.BatchAction):
+    name = "suspend"
+    verbose_name = _("Suspend Stack")
+    policy_rules = (("orchestration", "cloudformation:SuspendStack"),)
+
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Suspend Stack",
+            u"Suspend Stacks",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Suspended Stack",
+            u"Suspended Stacks",
+            count
+        )
+
+    def action(self, request, stack_id):
+        api.heat.action_suspend(request, stack_id)
+
+
+class ResumeStack(tables.BatchAction):
+    name = "resume"
+    verbose_name = _("Resume Stack")
+    policy_rules = (("orchestration", "cloudformation:ResumeStack"),)
+
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Resume Stack",
+            u"Resume Stacks",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Resumed Stack",
+            u"Resumed Stacks",
+            count
+        )
+
+    def action(self, request, stack_id):
+        api.heat.action_resume(request, stack_id)
 
 
 class ChangeStackTemplate(tables.LinkAction):
@@ -83,19 +166,94 @@ class StacksUpdateRow(tables.Row):
 
     def get_data(self, request, stack_id):
         try:
-            return api.heat.stack_get(request, stack_id)
-        except exc.HTTPNotFound:
-            # returning 404 to the ajax call removes the
-            # row from the table on the ui
-            raise Http404
+            stack = api.heat.stack_get(request, stack_id)
+            if stack.stack_status == 'DELETE_COMPLETE':
+                # returning 404 to the ajax call removes the
+                # row from the table on the ui
+                raise Http404
+            return stack
+        except Http404:
+            raise
         except Exception as e:
             messages.error(request, e)
+            raise
+
+
+class StacksFilterAction(tables.FilterAction):
+
+    def filter(self, table, stacks, filter_string):
+        """Naive case-insensitive search."""
+        query = filter_string.lower()
+        return [stack for stack in stacks
+                if query in stack.name.lower()]
 
 
 class StacksTable(tables.DataTable):
     STATUS_CHOICES = (
         ("Complete", True),
         ("Failed", False),
+    )
+    STACK_STATUS_DISPLAY_CHOICES = (
+        ("init_in_progress", pgettext_lazy("current status of stack",
+                                           u"Init In Progress")),
+        ("init_complete", pgettext_lazy("current status of stack",
+                                        u"Init Complete")),
+        ("init_failed", pgettext_lazy("current status of stack",
+                                      u"Init Failed")),
+        ("create_in_progress", pgettext_lazy("current status of stack",
+                                             u"Create In Progress")),
+        ("create_complete", pgettext_lazy("current status of stack",
+                                          u"Create Complete")),
+        ("create_failed", pgettext_lazy("current status of stack",
+                                        u"Create Failed")),
+        ("delete_in_progress", pgettext_lazy("current status of stack",
+                                             u"Delete In Progress")),
+        ("delete_complete", pgettext_lazy("current status of stack",
+                                          u"Delete Complete")),
+        ("delete_failed", pgettext_lazy("current status of stack",
+                                        u"Delete Failed")),
+        ("update_in_progress", pgettext_lazy("current status of stack",
+                                             u"Update In Progress")),
+        ("update_complete", pgettext_lazy("current status of stack",
+                                          u"Update Complete")),
+        ("update_failed", pgettext_lazy("current status of stack",
+                                        u"Update Failed")),
+        ("rollback_in_progress", pgettext_lazy("current status of stack",
+                                               u"Rollback In Progress")),
+        ("rollback_complete", pgettext_lazy("current status of stack",
+                                            u"Rollback Complete")),
+        ("rollback_failed", pgettext_lazy("current status of stack",
+                                          u"Rollback Failed")),
+        ("suspend_in_progress", pgettext_lazy("current status of stack",
+                                              u"Suspend In Progress")),
+        ("suspend_complete", pgettext_lazy("current status of stack",
+                                           u"Suspend Complete")),
+        ("suspend_failed", pgettext_lazy("current status of stack",
+                                         u"Suspend Failed")),
+        ("resume_in_progress", pgettext_lazy("current status of stack",
+                                             u"Resume In Progress")),
+        ("resume_complete", pgettext_lazy("current status of stack",
+                                          u"Resume Complete")),
+        ("resume_failed", pgettext_lazy("current status of stack",
+                                        u"Resume Failed")),
+        ("adopt_in_progress", pgettext_lazy("current status of stack",
+                                            u"Adopt In Progress")),
+        ("adopt_complete", pgettext_lazy("current status of stack",
+                                         u"Adopt Complete")),
+        ("adopt_failed", pgettext_lazy("current status of stack",
+                                       u"Adopt Failed")),
+        ("snapshot_in_progress", pgettext_lazy("current status of stack",
+                                               u"Snapshot In Progress")),
+        ("snapshot_complete", pgettext_lazy("current status of stack",
+                                            u"Snapshot Complete")),
+        ("snapshot_failed", pgettext_lazy("current status of stack",
+                                          u"Snapshot Failed")),
+        ("check_in_progress", pgettext_lazy("current status of stack",
+                                            u"Check In Progress")),
+        ("check_complete", pgettext_lazy("current status of stack",
+                                         u"Check Complete")),
+        ("check_failed", pgettext_lazy("current status of stack",
+                                       u"Check Failed")),
     )
     name = tables.Column("stack_name",
                          verbose_name=_("Stack Name"),
@@ -109,23 +267,35 @@ class StacksTable(tables.DataTable):
                             filters=(filters.parse_isotime,
                                      filters.timesince_or_never))
     status = tables.Column("status",
-                           filters=(title, filters.replace_underscores),
-                           verbose_name=_("Status"),
+                           hidden=True,
                            status=True,
                            status_choices=STATUS_CHOICES)
+
+    stack_status = tables.Column("stack_status",
+                                 verbose_name=_("Status"),
+                                 display_choices=STACK_STATUS_DISPLAY_CHOICES)
 
     def get_object_display(self, stack):
         return stack.stack_name
 
-    class Meta:
+    class Meta(object):
         name = "stacks"
         verbose_name = _("Stacks")
         pagination_param = 'stack_marker'
         status_columns = ["status", ]
         row_class = StacksUpdateRow
-        table_actions = (LaunchStack, DeleteStack,)
-        row_actions = (DeleteStack,
-                       ChangeStackTemplate)
+        table_actions = (LaunchStack,
+                         PreviewStack,
+                         CheckStack,
+                         SuspendStack,
+                         ResumeStack,
+                         DeleteStack,
+                         StacksFilterAction,)
+        row_actions = (CheckStack,
+                       SuspendStack,
+                       ResumeStack,
+                       ChangeStackTemplate,
+                       DeleteStack,)
 
 
 def get_resource_url(obj):
@@ -152,7 +322,7 @@ class EventsTable(tables.DataTable):
     statusreason = tables.Column("resource_status_reason",
                                  verbose_name=_("Status Reason"),)
 
-    class Meta:
+    class Meta(object):
         name = "events"
         verbose_name = _("Stack Events")
 
@@ -175,31 +345,39 @@ class ResourcesUpdateRow(tables.Row):
 
 
 class ResourcesTable(tables.DataTable):
+    class StatusColumn(tables.Column):
+        def get_raw_data(self, datum):
+            return datum.resource_status.partition("_")[2]
+
     STATUS_CHOICES = (
-        ("Create Complete", True),
-        ("Create Failed", False),
+        ("Complete", True),
+        ("Failed", False),
     )
+    STATUS_DISPLAY_CHOICES = StacksTable.STACK_STATUS_DISPLAY_CHOICES
 
     logical_resource = tables.Column('resource_name',
                                      verbose_name=_("Stack Resource"),
                                      link=get_resource_url)
     physical_resource = tables.Column('physical_resource_id',
-                                     verbose_name=_("Resource"),
-                                     link=mappings.resource_to_url)
+                                      verbose_name=_("Resource"),
+                                      link=mappings.resource_to_url)
     resource_type = tables.Column("resource_type",
-                           verbose_name=_("Stack Resource Type"),)
+                                  verbose_name=_("Stack Resource Type"),)
     updated_time = tables.Column('updated_time',
-                              verbose_name=_("Date Updated"),
-                              filters=(filters.parse_isotime,
-                                       filters.timesince_or_never))
+                                 verbose_name=_("Date Updated"),
+                                 filters=(filters.parse_isotime,
+                                          filters.timesince_or_never))
     status = tables.Column("resource_status",
-                           filters=(title, filters.replace_underscores),
                            verbose_name=_("Status"),
-                           status=True,
-                           status_choices=STATUS_CHOICES)
+                           display_choices=STATUS_DISPLAY_CHOICES)
 
     statusreason = tables.Column("resource_status_reason",
                                  verbose_name=_("Status Reason"),)
+
+    status_hidden = StatusColumn("status",
+                                 hidden=True,
+                                 status=True,
+                                 status_choices=STATUS_CHOICES)
 
     def __init__(self, request, data=None,
                  needs_form_wrapper=None, **kwargs):
@@ -210,8 +388,8 @@ class ResourcesTable(tables.DataTable):
     def get_object_id(self, datum):
         return datum.resource_name
 
-    class Meta:
+    class Meta(object):
         name = "resources"
         verbose_name = _("Stack Resources")
-        status_columns = ["status", ]
+        status_columns = ["status_hidden", ]
         row_class = ResourcesUpdateRow

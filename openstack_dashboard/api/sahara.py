@@ -15,6 +15,7 @@ import logging
 
 from django.conf import settings
 
+from horizon import exceptions
 from horizon.utils.memoized import memoized  # noqa
 from openstack_dashboard.api import base
 
@@ -25,12 +26,16 @@ LOG = logging.getLogger(__name__)
 
 
 # "type" of Sahara service registered in keystone
-SAHARA_SERVICE = 'data_processing'
+SAHARA_SERVICE = 'data-processing'
+# Sahara service_type registered in Juno
+SAHARA_SERVICE_FALLBACK = 'data_processing'
 
-SAHARA_AUTO_IP_ALLOCATION_ENABLED = getattr(settings,
+SAHARA_AUTO_IP_ALLOCATION_ENABLED = getattr(
+    settings,
     'SAHARA_AUTO_IP_ALLOCATION_ENABLED',
     False)
-VERSIONS = base.APIVersionManager(SAHARA_SERVICE,
+VERSIONS = base.APIVersionManager(
+    SAHARA_SERVICE,
     preferred_version=getattr(settings,
                               'OPENSTACK_API_VERSIONS',
                               {}).get(SAHARA_SERVICE, 1.1))
@@ -40,15 +45,23 @@ VERSIONS.load_supported_version(1.1, {"client": api_client,
 
 @memoized
 def client(request):
+    try:
+        service_type = SAHARA_SERVICE
+        sahara_url = base.url_for(request, service_type)
+    except exceptions.ServiceCatalogException:
+        # if no endpoint found, fallback to the old service_type
+        service_type = SAHARA_SERVICE_FALLBACK
+        sahara_url = base.url_for(request, service_type)
+
     return api_client.Client(VERSIONS.get_active_version()["version"],
-                             sahara_url=base.url_for(request, SAHARA_SERVICE),
-                             service_type=SAHARA_SERVICE,
+                             sahara_url=sahara_url,
+                             service_type=service_type,
                              project_id=request.user.project_id,
                              input_auth_token=request.user.token.id)
 
 
-def image_list(request):
-    return client(request).images.list()
+def image_list(request, search_opts=None):
+    return client(request).images.list(search_opts)
 
 
 def image_get(request, image_id):
@@ -67,8 +80,8 @@ def image_tags_update(request, image_id, image_tags):
     client(request).images.update_tags(image_id, image_tags)
 
 
-def plugin_list(request):
-    return client(request).plugins.list()
+def plugin_list(request, search_opts=None):
+    return client(request).plugins.list(search_opts)
 
 
 def plugin_get(request, plugin_name):
@@ -83,9 +96,9 @@ def plugin_get_version_details(request, plugin_name, hadoop_version):
 def plugin_convert_to_template(request, plugin_name, hadoop_version,
                                template_name, file_content):
     return client(request).plugins.convert_to_cluster_template(plugin_name,
-                                                       hadoop_version,
-                                                       template_name,
-                                                       file_content)
+                                                               hadoop_version,
+                                                               template_name,
+                                                               file_content)
 
 
 def nodegroup_template_create(request, name, plugin_name, hadoop_version,
@@ -93,21 +106,28 @@ def nodegroup_template_create(request, name, plugin_name, hadoop_version,
                               volumes_per_node=None, volumes_size=None,
                               node_processes=None, node_configs=None,
                               floating_ip_pool=None, security_groups=None,
-                              auto_security_group=False):
-    return client(request).node_group_templates.create(name, plugin_name,
-                                                       hadoop_version,
-                                                       flavor_id, description,
-                                                       volumes_per_node,
-                                                       volumes_size,
-                                                       node_processes,
-                                                       node_configs,
-                                                       floating_ip_pool,
-                                                       security_groups,
-                                                       auto_security_group)
+                              auto_security_group=False,
+                              availability_zone=False,
+                              volumes_availability_zone=False):
+    return client(request).node_group_templates.create(
+        name,
+        plugin_name,
+        hadoop_version,
+        flavor_id,
+        description,
+        volumes_per_node,
+        volumes_size,
+        node_processes,
+        node_configs,
+        floating_ip_pool,
+        security_groups,
+        auto_security_group,
+        availability_zone,
+        volumes_availability_zone)
 
 
-def nodegroup_template_list(request):
-    return client(request).node_group_templates.list()
+def nodegroup_template_list(request, search_opts=None):
+    return client(request).node_group_templates.list(search_opts)
 
 
 def nodegroup_template_get(request, ngt_id):
@@ -126,17 +146,26 @@ def nodegroup_template_update(request, ngt_id, name, plugin_name,
                               hadoop_version, flavor_id,
                               description=None, volumes_per_node=None,
                               volumes_size=None, node_processes=None,
-                              node_configs=None, floating_ip_pool=None):
-    return client(request).node_group_templates.update(ngt_id, name,
-                                                       plugin_name,
-                                                       hadoop_version,
-                                                       flavor_id,
-                                                       description,
-                                                       volumes_per_node,
-                                                       volumes_size,
-                                                       node_processes,
-                                                       node_configs,
-                                                       floating_ip_pool)
+                              node_configs=None, floating_ip_pool=None,
+                              security_groups=None, auto_security_group=False,
+                              availability_zone=False,
+                              volumes_availability_zone=False):
+    return client(request).node_group_templates.update(
+        ngt_id,
+        name,
+        plugin_name,
+        hadoop_version,
+        flavor_id,
+        description,
+        volumes_per_node,
+        volumes_size,
+        node_processes,
+        node_configs,
+        floating_ip_pool,
+        security_groups,
+        auto_security_group,
+        availability_zone,
+        volumes_availability_zone)
 
 
 def cluster_template_create(request, name, plugin_name, hadoop_version,
@@ -152,8 +181,8 @@ def cluster_template_create(request, name, plugin_name, hadoop_version,
                                                     net_id)
 
 
-def cluster_template_list(request):
-    return client(request).cluster_templates.list()
+def cluster_template_list(request, search_opts=None):
+    return client(request).cluster_templates.list(search_opts)
 
 
 def cluster_template_get(request, ct_id):
@@ -196,8 +225,8 @@ def cluster_scale(request, cluster_id, scale_object):
     return client(request).clusters.scale(cluster_id, scale_object)
 
 
-def cluster_list(request):
-    return client(request).clusters.list()
+def cluster_list(request, search_opts=None):
+    return client(request).clusters.list(search_opts)
 
 
 def cluster_get(request, cluster_id):
@@ -215,8 +244,8 @@ def data_source_create(request, name, description, ds_type, url,
                                                credential_pass)
 
 
-def data_source_list(request):
-    return client(request).data_sources.list()
+def data_source_list(request, search_opts=None):
+    return client(request).data_sources.list(search_opts)
 
 
 def data_source_get(request, ds_id):
@@ -231,8 +260,8 @@ def job_binary_create(request, name, url, description, extra):
     return client(request).job_binaries.create(name, url, description, extra)
 
 
-def job_binary_list(request):
-    return client(request).job_binaries.list()
+def job_binary_list(request, search_opts=None):
+    return client(request).job_binaries.list(search_opts)
 
 
 def job_binary_get(request, jb_id):
@@ -251,8 +280,8 @@ def job_binary_internal_create(request, name, data):
     return client(request).job_binary_internals.create(name, data)
 
 
-def job_binary_internal_list(request):
-    return client(request).job_binary_internals.list()
+def job_binary_internal_list(request, search_opts=None):
+    return client(request).job_binary_internals.list(search_opts)
 
 
 def job_binary_internal_get(request, jbi_id):
@@ -267,8 +296,8 @@ def job_create(request, name, j_type, mains, libs, description):
     return client(request).jobs.create(name, j_type, mains, libs, description)
 
 
-def job_list(request):
-    return client(request).jobs.list()
+def job_list(request, search_opts=None):
+    return client(request).jobs.list(search_opts)
 
 
 def job_get(request, job_id):
@@ -290,8 +319,8 @@ def job_execution_create(request, job_id, cluster_id,
                                                  configs)
 
 
-def job_execution_list(request):
-    jex_list = client(request).job_executions.list()
+def job_execution_list(request, search_opts=None):
+    jex_list = client(request).job_executions.list(search_opts)
     job_dict = dict((j.id, j) for j in job_list(request))
     cluster_dict = dict((c.id, c) for c in cluster_list(request))
     for jex in jex_list:

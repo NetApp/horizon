@@ -11,6 +11,7 @@
 #    under the License.
 
 
+from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext_lazy as _
 
 from horizon import exceptions
@@ -20,10 +21,48 @@ from horizon import messages
 from openstack_dashboard.api import cinder
 
 
+class CreateVolumeTypeEncryption(forms.SelfHandlingForm):
+    name = forms.CharField(label=_("Name"), required=False,
+                           widget=forms.TextInput(attrs={'readonly':
+                                                         'readonly'}))
+    provider = forms.CharField(max_length=255, label=_("Provider"))
+    control_location = forms.ChoiceField(label=_("Control Location"),
+                                         choices=(('front-end',
+                                                   _('front-end')),
+                                                  ('back-end',
+                                                   _('back-end')))
+                                         )
+    cipher = forms.CharField(label=_("Cipher"), required=False)
+    key_size = forms.IntegerField(label=_("Key Size (bits)"),
+                                  required=False,
+                                  min_value=1)
+    volume_type_id = forms.CharField(widget=forms.HiddenInput())
+
+    def handle(self, request, data):
+        try:
+            # Set Cipher to None if empty
+            if data['cipher'] is u'':
+                data['cipher'] = None
+
+            # Create encyrption for the volume type
+            volume_type = cinder.\
+                volume_encryption_type_create(request,
+                                              data['volume_type_id'],
+                                              data)
+            messages.success(request, _('Successfully created encryption for '
+                                        'volume type: %s') % data['name'])
+            return volume_type
+        except Exception:
+            redirect = reverse("horizon:admin:volumes:index")
+            exceptions.handle(request,
+                              _('Unable to create encrypted volume type.'),
+                              redirect=redirect)
+
+
 class ManageQosSpecAssociation(forms.SelfHandlingForm):
     qos_spec_choice = forms.ChoiceField(
-        label=_("QOS Spec to be associated"),
-        help_text=_("Choose associated QOS Spec."))
+        label=_("QoS Spec to be associated"),
+        help_text=_("Choose associated QoS Spec."))
 
     def __init__(self, request, *args, **kwargs):
         super(ManageQosSpecAssociation, self).__init__(request,
@@ -44,7 +83,7 @@ class ManageQosSpecAssociation(forms.SelfHandlingForm):
         # populate qos spec list box
         qos_specs = self.initial["qos_specs"]
         qos_spec_list = [(qos_spec.id, qos_spec.name)
-                          for qos_spec in qos_specs]
+                         for qos_spec in qos_specs]
 
         # 'none' is always listed first
         qos_spec_list.insert(0, ("-1", _("None")))
@@ -68,8 +107,8 @@ class ManageQosSpecAssociation(forms.SelfHandlingForm):
 
         if found_error:
             raise forms.ValidationError(
-                _('New associated QOS Spec must be different than '
-                 'the current associated QOS Spec.'))
+                _('New associated QoS Spec must be different than '
+                  'the current associated QoS Spec.'))
         return cleaned_new_spec_id
 
     def handle(self, request, data):
@@ -100,19 +139,20 @@ class ManageQosSpecAssociation(forms.SelfHandlingForm):
                                           vol_type_id)
 
             messages.success(request,
-                              _('Successfully updated QOS Spec association.'))
+                             _('Successfully updated QoS Spec association.'))
             return True
         except Exception:
+            redirect = reverse("horizon:admin:volumes:index")
             exceptions.handle(request,
-                              _('Error updating QOS Spec association.'))
-            return False
+                              _('Error updating QoS Spec association.'),
+                              redirect=redirect)
 
 
 class EditQosSpecConsumer(forms.SelfHandlingForm):
     consumer_choice = forms.ChoiceField(
-        label=_("QOS Spec Consumer"),
+        label=_("QoS Spec Consumer"),
         choices=cinder.CONSUMER_CHOICES,
-        help_text=_("Choose consumer for this QOS Spec."))
+        help_text=_("Choose consumer for this QoS Spec."))
 
     def __init__(self, request, *args, **kwargs):
         super(EditQosSpecConsumer, self).__init__(request, *args, **kwargs)
@@ -128,8 +168,8 @@ class EditQosSpecConsumer(forms.SelfHandlingForm):
 
         if cleaned_new_consumer == old_consumer:
             raise forms.ValidationError(
-                _('QOS Spec consumer value must be different than '
-                 'the current consumer value.'))
+                _('QoS Spec consumer value must be different than '
+                  'the current consumer value.'))
         return cleaned_new_consumer
 
     def handle(self, request, data):
@@ -142,8 +182,9 @@ class EditQosSpecConsumer(forms.SelfHandlingForm):
                                      qos_spec_id,
                                      {'consumer': new_consumer})
             messages.success(request,
-                             _('Successfully modified QOS Spec consumer.'))
+                             _('Successfully modified QoS Spec consumer.'))
             return True
         except Exception:
-            exceptions.handle(request, _('Error editing QOS Spec consumer.'))
-            return False
+            redirect = reverse("horizon:admin:volumes:index")
+            exceptions.handle(request, _('Error editing QoS Spec consumer.'),
+                              redirect=redirect)

@@ -47,7 +47,8 @@ class UpdateDefaultQuotasAction(workflows.Action):
     cores = forms.IntegerField(min_value=-1, label=_("VCPUs"))
     security_groups = forms.IntegerField(min_value=-1,
                                          label=_("Security Groups"))
-    gigabytes = forms.IntegerField(min_value=-1,
+    gigabytes = forms.IntegerField(
+        min_value=-1,
         label=_("Total Size of Volumes and Snapshots (GB)"))
     snapshots = forms.IntegerField(min_value=-1, label=_("Volume Snapshots"))
     volumes = forms.IntegerField(min_value=-1, label=_("Volumes"))
@@ -62,7 +63,7 @@ class UpdateDefaultQuotasAction(workflows.Action):
                 self.fields[field].required = False
                 self.fields[field].widget = forms.HiddenInput()
 
-    class Meta:
+    class Meta(object):
         name = _("Default Quotas")
         slug = 'update_default_quotas'
         help_text = _("From here you can update the default quotas "

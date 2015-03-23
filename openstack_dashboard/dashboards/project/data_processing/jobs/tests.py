@@ -27,13 +27,13 @@ DETAILS_URL = reverse(
 class DataProcessingJobTests(test.TestCase):
     @test.create_stubs({api.sahara: ('job_list',)})
     def test_index(self):
-        api.sahara.job_list(IsA(http.HttpRequest)) \
+        api.sahara.job_list(IsA(http.HttpRequest), {}) \
             .AndReturn(self.jobs.list())
         self.mox.ReplayAll()
         res = self.client.get(INDEX_URL)
         self.assertTemplateUsed(res,
-            'project/data_processing.jobs/jobs.html')
-        self.assertContains(res, 'Jobs')
+                                'project/data_processing.jobs/jobs.html')
+        self.assertContains(res, 'Job Templates')
         self.assertContains(res, 'Name')
 
     @test.create_stubs({api.sahara: ('job_get',)})
@@ -43,5 +43,38 @@ class DataProcessingJobTests(test.TestCase):
         self.mox.ReplayAll()
         res = self.client.get(DETAILS_URL)
         self.assertTemplateUsed(res,
-            'project/data_processing.jobs/details.html')
+                                'project/data_processing.jobs/details.html')
         self.assertContains(res, 'pigjob')
+
+    @test.create_stubs({api.sahara: ('job_binary_list', 'job_create',)})
+    def test_create(self):
+        api.sahara.job_binary_list(IsA(http.HttpRequest)).AndReturn([])
+        api.sahara.job_binary_list(IsA(http.HttpRequest)).AndReturn([])
+        api.sahara.job_create(IsA(http.HttpRequest),
+                              'test', 'Pig', [], [], 'test create')
+        self.mox.ReplayAll()
+        form_data = {'job_name': 'test',
+                     'job_type': 'pig',
+                     'lib_binaries': [],
+                     'lib_ids': '[]',
+                     'job_description': 'test create'}
+        url = reverse('horizon:project:data_processing.jobs:create-job')
+        res = self.client.post(url, form_data)
+
+        self.assertNoFormErrors(res)
+
+    @test.create_stubs({api.sahara: ('job_list',
+                                     'job_delete')})
+    def test_delete(self):
+        job = self.jobs.first()
+        api.sahara.job_list(IsA(http.HttpRequest), {}) \
+            .AndReturn(self.jobs.list())
+        api.sahara.job_delete(IsA(http.HttpRequest), job.id)
+        self.mox.ReplayAll()
+
+        form_data = {'action': 'jobs__delete__%s' % job.id}
+        res = self.client.post(INDEX_URL, form_data)
+
+        self.assertNoFormErrors(res)
+        self.assertRedirectsNoFollow(res, INDEX_URL)
+        self.assertMessageCount(success=1)

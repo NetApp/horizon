@@ -11,8 +11,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-#
-# @author: Tatiana Mazur
 
 from django.utils.translation import ugettext_lazy as _
 
@@ -30,8 +28,8 @@ class AddVPNServiceAction(workflows.Action):
         max_length=80, label=_("Description"))
     router_id = forms.ChoiceField(label=_("Router"))
     subnet_id = forms.ChoiceField(label=_("Subnet"))
-    # TODO(amotoki): make UP/DOWN translatable
-    admin_state_up = forms.ChoiceField(choices=[(True, 'UP'), (False, 'DOWN')],
+    admin_state_up = forms.ChoiceField(choices=[(True, _('UP')),
+                                                (False, _('DOWN'))],
                                        label=_("Admin State"),
                                        help_text=_("The state to start in."))
 
@@ -67,7 +65,7 @@ class AddVPNServiceAction(workflows.Action):
         self.fields['router_id'].choices = router_id_choices
         return router_id_choices
 
-    class Meta:
+    class Meta(object):
         name = _("Add New VPN Service")
         permissions = ('openstack.services.network',)
         help_text = _("Create VPN Service for current project.\n\n"
@@ -162,7 +160,7 @@ class AddIKEPolicyAction(workflows.Action):
         # Currently this field has only one choice, so mark it as readonly.
         self.fields['phase1_negotiation_mode'].widget.attrs['readonly'] = True
 
-    class Meta:
+    class Meta(object):
         name = _("Add New IKE Policy")
         permissions = ('openstack.services.network',)
         help_text = _("Create IKE Policy for current project.\n\n"
@@ -259,7 +257,7 @@ class AddIPSecPolicyAction(workflows.Action):
                                       ("ah-esp", "ah-esp")]
         self.fields['transform_protocol'].choices = transform_protocol_choices
 
-    class Meta:
+    class Meta(object):
         name = _("Add New IPSec Policy")
         permissions = ('openstack.services.network',)
         help_text = _("Create IPSec Policy for current project.\n\n"
@@ -381,7 +379,7 @@ class AddIPSecSiteConnectionAction(workflows.Action):
         self.fields['vpnservice_id'].choices = vpnservice_id_choices
         return vpnservice_id_choices
 
-    class Meta:
+    class Meta(object):
         name = _("Add New IPSec Site Connection")
         permissions = ('openstack.services.network',)
         help_text = _("Create IPSec Site Connection for current project.\n\n"
@@ -416,8 +414,8 @@ class AddIPSecSiteConnectionOptionalAction(workflows.Action):
         initial=120,
         help_text=_("Valid integer greater than the DPD interval"))
     initiator = forms.ChoiceField(label=_("Initiator state"))
-    # TODO(amotoki): make UP/DOWN translatable
-    admin_state_up = forms.ChoiceField(choices=[(True, 'UP'), (False, 'DOWN')],
+    admin_state_up = forms.ChoiceField(choices=[(True, _('UP')),
+                                                (False, _('DOWN'))],
                                        label=_("Admin State"),
                                        help_text=_("The state to start in."))
 
@@ -438,7 +436,7 @@ class AddIPSecSiteConnectionOptionalAction(workflows.Action):
         self.fields['dpd_action'].choices = dpd_action_choices
         return dpd_action_choices
 
-    class Meta:
+    class Meta(object):
         name = _("Optional Parameters")
         permissions = ('openstack.services.network',)
         help_text = _("Fields in this tab are optional. "

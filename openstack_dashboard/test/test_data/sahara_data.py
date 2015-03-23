@@ -10,6 +10,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import copy
+
 from openstack_dashboard.test.test_data import utils
 
 from saharaclient.api import cluster_templates
@@ -32,6 +34,7 @@ def data(TEST):
     TEST.job_binaries = utils.TestDataContainer()
     TEST.jobs = utils.TestDataContainer()
     TEST.job_executions = utils.TestDataContainer()
+    TEST.registered_images = copy.copy(TEST.images)
 
     plugin1_dict = {
         "description": "vanilla plugin",
@@ -101,7 +104,10 @@ def data(TEST):
         "created_at": "2014-06-04 14:01:03.701243",
         "description": None,
         "flavor_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "availability_zone": None,
         "floating_ip_pool": None,
+        "auto_security_group": True,
+        "security_groups": [],
         "hadoop_version": "1.2.1",
         "id": "c166dfcc-9cc7-4b48-adc9-f0946169bb36",
         "image_id": None,
@@ -119,7 +125,9 @@ def data(TEST):
         "updated_at": None,
         "volume_mount_prefix": "/volumes/disk",
         "volumes_per_node": 0,
-        "volumes_size": 0
+        "volumes_size": 0,
+        "security_groups": [],
+        "volumes_availability_zone": None,
     }
 
     ngt1 = node_group_templates.NodeGroupTemplate(
@@ -158,7 +166,8 @@ def data(TEST):
                 "updated_at": None,
                 "volume_mount_prefix": "/volumes/disk",
                 "volumes_per_node": 0,
-                "volumes_size": 0
+                "volumes_size": 0,
+                "volumes_availability_zone": None,
             },
             {
                 "count": 2,
@@ -176,7 +185,8 @@ def data(TEST):
                 "updated_at": None,
                 "volume_mount_prefix": "/volumes/disk",
                 "volumes_per_node": 0,
-                "volumes_size": 0
+                "volumes_size": 0,
+                "volumes_availability_zone": None,
             }
         ],
         "plugin_name": "vanilla",
@@ -235,7 +245,9 @@ def data(TEST):
                 "updated_at": "2014-06-04 20:02:14.841760",
                 "volume_mount_prefix": "/volumes/disk",
                 "volumes_per_node": 0,
-                "volumes_size": 0
+                "volumes_size": 0,
+                "security_groups": [],
+                "volumes_availability_zone": None,
             },
             {
                 "count": 2,
@@ -275,7 +287,9 @@ def data(TEST):
                 "updated_at": "2014-06-04 20:02:15.355745",
                 "volume_mount_prefix": "/volumes/disk",
                 "volumes_per_node": 0,
-                "volumes_size": 0
+                "volumes_size": 0,
+                "security_groups": ["b7857890-09bf-4ee0-a0d5-322d7a6978bf"],
+                "volumes_availability_zone": None,
             }
         ],
         "plugin_name": "vanilla",
@@ -332,9 +346,23 @@ def data(TEST):
         "url": "internal-db://80121dea-f8bd-4ad3-bcc7-096f4bfc722d"
     }
 
+    job_binary2_dict = {
+        "created_at": "2014-10-10 13:12:15.583631",
+        "description": "Test for spaces in name",
+        "id": "abcdef56-1234-abcd-abcd-defabcdaedcb",
+        "name": "example with spaces.pig",
+        "tenant_id": "429ad8447c2d47bc8e0382d244e1d1df",
+        "updated_at": None,
+        "url": "internal-db://abcdef56-1234-abcd-abcd-defabcdaedcb"
+    }
+
     job_binary1 = job_binaries.JobBinaries(
         job_binaries.JobBinariesManager(None), job_binary1_dict)
+    job_binary2 = job_binaries.JobBinaries(
+        job_binaries.JobBinariesManager(None), job_binary2_dict)
+
     TEST.job_binaries.add(job_binary1)
+    TEST.job_binaries.add(job_binary2)
 
     # Jobs.
     job1_dict = {
@@ -460,3 +488,8 @@ def data(TEST):
     jobex1 = job_executions.JobExecution(
         job_executions.JobExecutionsManager(None), jobex1_dict)
     TEST.job_executions.add(jobex1)
+
+    augmented_image = TEST.registered_images.first()
+    augmented_image.tags = {}
+    augmented_image.username = 'myusername'
+    augmented_image.description = 'mydescription'

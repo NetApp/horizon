@@ -33,7 +33,8 @@ class UpdateDefaultQuotas(tables.LinkAction):
     name = "update_defaults"
     verbose_name = _("Update Defaults")
     url = "horizon:admin:defaults:update_defaults"
-    classes = ("ajax-modal", "btn-edit")
+    classes = ("ajax-modal",)
+    icon = "pencil"
 
 
 def get_quota_name(quota):
@@ -71,7 +72,7 @@ class QuotasTable(tables.DataTable):
     def get_object_id(self, obj):
         return obj.name
 
-    class Meta:
+    class Meta(object):
         name = "quotas"
         verbose_name = _("Quotas")
         table_actions = (QuotaFilterAction, UpdateDefaultQuotas)

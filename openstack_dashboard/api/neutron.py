@@ -21,12 +21,14 @@ from __future__ import absolute_import
 
 import collections
 import logging
+import warnings
 
 import netaddr
 
 from django.conf import settings
 from django.utils.datastructures import SortedDict
 from django.utils.translation import ugettext_lazy as _
+from neutronclient.common import exceptions as neutron_exc
 from neutronclient.v2_0 import client as neutron_client
 
 from horizon import messages
@@ -43,6 +45,11 @@ IP_VERSION_DICT = {4: 'IPv4', 6: 'IPv6'}
 
 OFF_STATE = 'OFF'
 ON_STATE = 'ON'
+
+ROUTER_INTERFACE_OWNERS = (
+    'network:router_interface',
+    'network:router_interface_distributed'
+)
 
 
 class NeutronAPIDictWrapper(base.APIDictWrapper):
@@ -81,11 +88,16 @@ class Network(NeutronAPIDictWrapper):
     def __init__(self, apiresource):
         apiresource['admin_state'] = \
             'UP' if apiresource['admin_state_up'] else 'DOWN'
-        # Django cannot handle a key name with a colon, so remap another key
+        # Django cannot handle a key name with ':', so use '__'
         for key in apiresource.keys():
-            if key.find(':'):
+            if ':' in key:
                 apiresource['__'.join(key.split(':'))] = apiresource[key]
         super(Network, self).__init__(apiresource)
+
+    def to_dict(self):
+        d = dict(super(NeutronAPIDictWrapper, self).to_dict())
+        d['subnets'] = [s.to_dict() for s in d['subnets']]
+        return d
 
 
 class Subnet(NeutronAPIDictWrapper):
@@ -100,6 +112,10 @@ class Port(NeutronAPIDictWrapper):
     """Wrapper for neutron ports."""
 
     def __init__(self, apiresource):
+        # Django cannot handle a key name with ':', so use '__'
+        for key in apiresource.keys():
+            if ':' in key:
+                apiresource['__'.join(key.split(':'))] = apiresource[key]
         apiresource['admin_state'] = \
             'UP' if apiresource['admin_state_up'] else 'DOWN'
         if 'mac_learning_enabled' in apiresource:
@@ -135,6 +151,9 @@ class SecurityGroup(NeutronAPIDictWrapper):
         sg['rules'] = [SecurityGroupRule(rule, sg_dict)
                        for rule in sg['security_group_rules']]
         super(SecurityGroup, self).__init__(sg)
+
+    def to_dict(self):
+        return {k: self._apidict[k] for k in self._apidict if k != 'rules'}
 
 
 class SecurityGroupRule(NeutronAPIDictWrapper):
@@ -242,7 +261,8 @@ class SecurityGroupManager(network_base.SecurityGroupManager):
 
     def create(self, name, desc):
         body = {'security_group': {'name': name,
-                                   'description': desc}}
+                                   'description': desc,
+                                   'tenant_id': self.request.user.project_id}}
         secgroup = self.client.create_security_group(body)
         return SecurityGroup(secgroup.get('security_group'))
 
@@ -269,14 +289,14 @@ class SecurityGroupManager(network_base.SecurityGroupManager):
             ip_protocol = None
 
         body = {'security_group_rule':
-                    {'security_group_id': parent_group_id,
-                     'direction': direction,
-                     'ethertype': ethertype,
-                     'protocol': ip_protocol,
-                     'port_range_min': from_port,
-                     'port_range_max': to_port,
-                     'remote_ip_prefix': cidr,
-                     'remote_group_id': group_id}}
+                {'security_group_id': parent_group_id,
+                 'direction': direction,
+                 'ethertype': ethertype,
+                 'protocol': ip_protocol,
+                 'port_range_min': from_port,
+                 'port_range_max': to_port,
+                 'remote_ip_prefix': cidr,
+                 'remote_group_id': group_id}}
         rule = self.client.create_security_group_rule(body)
         rule = rule.get('security_group_rule')
         sg_dict = self._sg_name_dict(parent_group_id, [rule])
@@ -379,7 +399,8 @@ class FloatingIpManager(network_base.FloatingIpManager):
         return FloatingIp(fip)
 
     def allocate(self, pool):
-        body = {'floatingip': {'floating_network_id': pool}}
+        body = {'floatingip': {'floating_network_id': pool,
+                               'tenant_id': self.request.user.project_id}}
         fip = self.client.create_floatingip(body).get('floatingip')
         self._set_instance_info(fip)
         return FloatingIp(fip)
@@ -396,7 +417,7 @@ class FloatingIpManager(network_base.FloatingIpManager):
         self.client.update_floatingip(floating_ip_id,
                                       {'floatingip': update_dict})
 
-    def disassociate(self, floating_ip_id, port_id):
+    def disassociate(self, floating_ip_id):
         update_dict = {'port_id': None}
         self.client.update_floatingip(floating_ip_id,
                                       {'floatingip': update_dict})
@@ -409,10 +430,14 @@ class FloatingIpManager(network_base.FloatingIpManager):
                           r.external_gateway_info.get('network_id')
                           in ext_net_ids)]
         reachable_subnets = set([p.fixed_ips[0]['subnet_id'] for p in ports
-                                 if ((p.device_owner ==
-                                      'network:router_interface')
-                                     and (p.device_id in gw_routers))])
-        return reachable_subnets
+                                if ((p.device_owner in
+                                     ROUTER_INTERFACE_OWNERS)
+                                    and (p.device_id in gw_routers))])
+        # we have to include any shared subnets as well because we may not
+        # have permission to see the router interface to infer connectivity
+        shared = set([s.id for n in network_list(self.request, shared=True)
+                      for s in n.subnets])
+        return reachable_subnets | shared
 
     def list_targets(self):
         tenant_id = self.request.user.tenant_id
@@ -420,6 +445,14 @@ class FloatingIpManager(network_base.FloatingIpManager):
         servers, has_more = nova.server_list(self.request)
         server_dict = SortedDict([(s.id, s.name) for s in servers])
         reachable_subnets = self._get_reachable_subnets(ports)
+        if is_service_enabled(self.request,
+                              config_name='enable_lb',
+                              ext_name='lbaas'):
+            # Also get the loadbalancer VIPs
+            vip_dict = {v['port_id']: v['name']
+                        for v in self.client.list_vips().get('vips', [])}
+        else:
+            vip_dict = {}
 
         targets = []
         for p in ports:
@@ -427,7 +460,8 @@ class FloatingIpManager(network_base.FloatingIpManager):
             if p.device_owner.startswith('network:'):
                 continue
             port_id = p.id
-            server_name = server_dict.get(p.device_id)
+            server_name = server_dict.get(p.device_id) or vip_dict.get(port_id)
+
             for ip in p.fixed_ips:
                 if ip['subnet_id'] not in reachable_subnets:
                     continue
@@ -492,15 +526,65 @@ def get_ipver_str(ip_version):
 def neutronclient(request):
     insecure = getattr(settings, 'OPENSTACK_SSL_NO_VERIFY', False)
     cacert = getattr(settings, 'OPENSTACK_SSL_CACERT', None)
-    LOG.debug('neutronclient connection created using token "%s" and url "%s"'
-              % (request.user.token.id, base.url_for(request, 'network')))
-    LOG.debug('user_id=%(user)s, tenant_id=%(tenant)s' %
-              {'user': request.user.id, 'tenant': request.user.tenant_id})
     c = neutron_client.Client(token=request.user.token.id,
                               auth_url=base.url_for(request, 'identity'),
                               endpoint_url=base.url_for(request, 'network'),
                               insecure=insecure, ca_cert=cacert)
     return c
+
+
+def list_resources_with_long_filters(list_method,
+                                     filter_attr, filter_values, **params):
+    """List neutron resources with handling RequestURITooLong exception.
+
+    If filter parameters are long, list resources API request leads to
+    414 error (URL is too long). For such case, this method split
+    list parameters specified by a list_field argument into chunks
+    and call the specified list_method repeatedly.
+
+    :param list_method: Method used to retrieve resource list.
+    :param filter_attr: attribute name to be filtered. The value corresponding
+        to this attribute is specified by "filter_values".
+        If you want to specify more attributes for a filter condition,
+        pass them as keyword arguments like "attr2=values2".
+    :param filter_values: values of "filter_attr" to be filtered.
+        If filter_values are too long and the total URI length exceed the
+        maximum length supported by the neutron server, filter_values will
+        be split into sub lists if filter_values is a list.
+    :param params: parameters to pass a specified listing API call
+        without any changes. You can specify more filter conditions
+        in addition to a pair of filter_attr and filter_values.
+    """
+    try:
+        params[filter_attr] = filter_values
+        return list_method(**params)
+    except neutron_exc.RequestURITooLong as uri_len_exc:
+        # The URI is too long because of too many filter values.
+        # Use the excess attribute of the exception to know how many
+        # filter values can be inserted into a single request.
+
+        # We consider only the filter condition from (filter_attr,
+        # filter_values) and do not consider other filter conditions
+        # which may be specified in **params.
+        if type(filter_values) != list:
+            filter_values = [filter_values]
+
+        # Length of each query filter is:
+        # <key>=<value>& (e.g., id=<uuid>)
+        # The length will be key_len + value_maxlen + 2
+        all_filter_len = sum(len(filter_attr) + len(val) + 2
+                             for val in filter_values)
+        allowed_filter_len = all_filter_len - uri_len_exc.excess
+
+        val_maxlen = max(len(val) for val in filter_values)
+        filter_maxlen = len(filter_attr) + val_maxlen + 2
+        chunk_size = allowed_filter_len / filter_maxlen
+
+        resources = []
+        for i in range(0, len(filter_values), chunk_size):
+            params[filter_attr] = filter_values[i:i + chunk_size]
+            resources.extend(list_method(**params))
+        return resources
 
 
 def network_list(request, **params):
@@ -550,6 +634,7 @@ def network_get(request, network_id, expand_subnet=True, **params):
     if expand_subnet:
         network['subnets'] = [subnet_get(request, sid)
                               for sid in network['subnets']]
+
     return Network(network)
 
 
@@ -565,6 +650,8 @@ def network_create(request, **kwargs):
     # In the case network profiles are being used, profile id is needed.
     if 'net_profile_id' in kwargs:
         kwargs['n1kv:profile_id'] = kwargs.pop('net_profile_id')
+    if 'tenant_id' not in kwargs:
+        kwargs['tenant_id'] = request.user.project_id
     body = {'network': kwargs}
     network = neutronclient(request).create_network(body=body).get('network')
     return Network(network)
@@ -611,9 +698,11 @@ def subnet_create(request, network_id, cidr, ip_version, **kwargs):
     LOG.debug("subnet_create(): netid=%s, cidr=%s, ipver=%d, kwargs=%s"
               % (network_id, cidr, ip_version, kwargs))
     body = {'subnet':
-                {'network_id': network_id,
-                 'ip_version': ip_version,
-                 'cidr': cidr}}
+            {'network_id': network_id,
+             'ip_version': ip_version,
+             'cidr': cidr}}
+    if 'tenant_id' not in kwargs:
+        kwargs['tenant_id'] = request.user.project_id
     body['subnet'].update(kwargs)
     subnet = neutronclient(request).create_subnet(body=body).get('subnet')
     return Subnet(subnet)
@@ -644,6 +733,13 @@ def port_get(request, port_id, **params):
     return Port(port)
 
 
+def unescape_port_kwargs(**kwargs):
+    for key in kwargs:
+        if '__' in key:
+            kwargs[':'.join(key.split('__'))] = kwargs.pop(key)
+    return kwargs
+
+
 def port_create(request, network_id, **kwargs):
     """Create a port on a specified network.
 
@@ -658,7 +754,10 @@ def port_create(request, network_id, **kwargs):
     # In the case policy profiles are being used, profile id is needed.
     if 'policy_profile_id' in kwargs:
         kwargs['n1kv:profile_id'] = kwargs.pop('policy_profile_id')
+    kwargs = unescape_port_kwargs(**kwargs)
     body = {'port': {'network_id': network_id}}
+    if 'tenant_id' not in kwargs:
+        kwargs['tenant_id'] = request.user.project_id
     body['port'].update(kwargs)
     port = neutronclient(request).create_port(body=body).get('port')
     return Port(port)
@@ -671,6 +770,7 @@ def port_delete(request, port_id):
 
 def port_update(request, port_id, **kwargs):
     LOG.debug("port_update(): portid=%s, kwargs=%s" % (port_id, kwargs))
+    kwargs = unescape_port_kwargs(**kwargs)
     body = {'port': kwargs}
     port = neutronclient(request).update_port(port_id, body=body).get('port')
     return Port(port)
@@ -738,6 +838,8 @@ def profile_bindings_list(request, type_p, **params):
 def router_create(request, **kwargs):
     LOG.debug("router_create():, kwargs=%s" % kwargs)
     body = {'router': {}}
+    if 'tenant_id' not in kwargs:
+        kwargs['tenant_id'] = request.user.project_id
     body['router'].update(kwargs)
     router = neutronclient(request).create_router(body=body).get('router')
     return Router(router)
@@ -838,16 +940,19 @@ def servers_update_addresses(request, servers, all_tenants=False):
 
     # Get all (filtered for relevant servers) information from Neutron
     try:
-        ports = port_list(request,
-                          device_id=[instance.id for instance in servers])
+        ports = list_resources_with_long_filters(
+            port_list, 'device_id', [instance.id for instance in servers],
+            request=request)
         fips = FloatingIpManager(request)
         if fips.is_supported():
-            floating_ips = fips.list(all_tenants=all_tenants,
-                                     port_id=[port.id for port in ports])
+            floating_ips = list_resources_with_long_filters(
+                fips.list, 'port_id', [port.id for port in ports],
+                all_tenants=all_tenants)
         else:
             floating_ips = []
-        networks = network_list(request,
-                                id=[port.network_id for port in ports])
+        networks = list_resources_with_long_filters(
+            network_list, 'id', set([port.network_id for port in ports]),
+            request=request)
     except Exception:
         error_message = _('Unable to connect to Neutron.')
         LOG.error(error_message)
@@ -936,6 +1041,12 @@ def is_extension_supported(request, extension_alias):
 
 
 def is_enabled_by_config(name, default=True):
+    if hasattr(settings, 'OPENSTACK_QUANTUM_NETWORK'):
+        warnings.warn(
+            'OPENSTACK_QUANTUM_NETWORK setting is deprecated and will be '
+            'removed in the near future. '
+            'Please use OPENSTACK_NEUTRON_NETWORK instead.',
+            DeprecationWarning)
     network_config = (getattr(settings, 'OPENSTACK_NEUTRON_NETWORK', {}) or
                       getattr(settings, 'OPENSTACK_QUANTUM_NETWORK', {}))
     return network_config.get(name, default)

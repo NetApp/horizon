@@ -35,7 +35,7 @@ Second, you'll need to take care of a couple administrative tasks:
 #. Follow the `instructions for setting up git-review`_ in your
    development environment.
 
-Whew! Got that all that? Okay! You're good to go.
+Whew! Got all that? Okay! You're good to go.
 
 Ways To Contribute
 ------------------
@@ -54,9 +54,13 @@ plunging in head-first:
   mailing list on the project page, or on IRC.
 * Write documentation!
 * Write unit tests for untested code!
+* Help improve the `User Experience Design`_ or contribute to the `Persona Working Group`_.
 
 .. _`bug tracker`: https://bugs.launchpad.net/horizon
 .. _`Launchpad Blueprints`: https://blueprints.launchpad.net/horizon
+.. _`User Experience Design`: https://wiki.openstack.org/wiki/UX#Getting_Started
+.. _`Persona Working Group`: https://wiki.openstack.org/wiki/Personas
+
 
 Choosing Issues To Work On
 --------------------------
@@ -84,6 +88,7 @@ Once you've made your changes, there are a few things to do:
 
 * Make sure the unit tests pass: ``./run_tests.sh``
 * Make sure PEP8 is clean: ``./run_tests.sh --pep8``
+* Make sure your code is ready for translation: ``./run_tests.sh --pseudo de`` See the Translatability section below for details.
 * Make sure your code is up-to-date with the latest master: ``git pull --rebase``
 * Finally, run ``git review`` to upload your changes to Gerrit for review.
 
@@ -96,7 +101,7 @@ merged to the master repository and it's time to celebrate!
 .. _`OpenStack Contributor License Agreement`: http://wiki.openstack.org/CLA
 .. _`OpenStack Contributors`: https://launchpad.net/~openstack-cla
 .. _`Horizon Developers`: https://launchpad.net/~horizon
-.. _`instructions for setting up git-review`: http://wiki.openstack.org/GerritWorkflow
+.. _`instructions for setting up git-review`: http://docs.openstack.org/infra/manual/developers.html#development-workflow
 
 Etiquette
 =========
@@ -120,8 +125,46 @@ The community's guidelines for etiquette are fairly simple:
   a piece of code, it's polite (though not required) to thank them in your
   commit message.
 
+Translatability
+===============
+Horizon gets translated into multiple languages. The pseudo translation tool
+can be used to verify that code is ready to be translated. The pseudo tool
+replaces a language's translation with a complete, fake translation. Then
+you can verify that your code properly displays fake translations to validate
+that your code is ready for translation.
+
+Running the pseudo translation tool
+-----------------------------------
+
+#. Make sure your English po file is up to date: ``./run_tests.sh --makemessages``
+#. Run the pseudo tool to create pseudo translations. For example, to replace the German translation with a pseudo translation: ``./run_tests.sh --pseudo de``
+#. Compile the catalog: ``./run_tests.sh --compilemessages``
+#. Run your development server.
+#. Log in and change to the language you pseudo translated.
+
+It should look weird. More specifically, the translatable segments are going
+to start and end with a bracket and they are going to have some added
+characters. For example, "Log In" will become "[~Log In~您好яшçあ]"
+This is useful because you can inspect for the following, and consider if your
+code is working like it should:
+
+* If you see a string in English it's not translatable. Should it be?
+* If you see brackets next to each other that might be concatenation. Concatenation
+  can make quality translations difficult or impossible. See
+  https://wiki.openstack.org/wiki/I18n/TranslatableStrings#Use_string_formating_variables.2C_never_perform_string_concatenation
+  for additional information.
+* If there is unexpected wrapping/truncation there might not be enough
+  space for translations.
+* If you see a string in the proper translated language, it comes from an
+  external source. (That's not bad, just sometimes useful to know)
+* If you get new crashes, there is probably a bug.
+
+Don't forget to cleanup any pseudo translated po files. Those don't get merged!
+
 Code Style
 ==========
+
+As a project, Horizon adheres to code quality standards.
 
 Python
 ------
@@ -143,28 +186,285 @@ other miscellany.
 JavaScript
 ----------
 
-As a project, Horizon adheres to code quality standards for our JavaScript
-just as we do for our Python. To that end we recommend (but do not strictly
-enforce) the use of JSLint_ to validate some general best practices.
+The following standards are divided into required and recommended sections.
+Our main goal in establishing these best practices is to have code that is
+reliable, readable, and maintainable.
 
-The default options are mostly good, but the following accommodate some
-allowances we make:
+Required
+~~~~~~~~
 
-* Set ``Indentation`` to ``2``.
-* Enable the ``Assume console, alert, ...`` option.
-* Enable the ``Assume a browser`` option.
-* Enable the ``Tolerate missing 'use strict' pragma`` option.
-* Clear the ``Maximum number of errors`` field.
-* Add ``horizon,$`` to the ``Predefined`` list.
 
-We don't require that everything works with JavaScript disabled. It's fine to
-introduce features that require that JavaScript is enabled in the user's web
-browser.
+**Reliable**
 
-The code has to work on the stable and latest versions of Firefox, Chrome,
-Safari, and Opera web browsers, and on Microsoft Internet Explorer 9 and later.
+* The code has to work on the stable and latest versions of Firefox, Chrome,
+  Safari, and Opera web browsers, and on Microsoft Internet Explorer 9 and
+  later.
 
-.. _JSLint: http://jslint.com/
+* If you turned compression off during development via ``COMPRESS_ENABLED =
+  False`` in local_settings.py, re-enable compression and test your code
+  before submitting.
+
+* Use ``===`` as opposed to ``==`` for equality checks. The ``==`` will do a
+  type cast before comparing, which can lead to unwanted results.
+
+ ..  Note ::
+     If typecasting is desired, explicit casting is preferred to keep the
+     meaning of your code clear.
+
+* Keep document reflows to a minimum. DOM manipulation is expensive, and can
+  become a performance issue. If you are accessing the DOM, make sure that you
+  are doing it in the most optimized way. One example is to build up a document
+  fragment and then append the fragment to the DOM in one pass instead of doing
+  multiple smaller DOM updates.
+* Use “strict”, enclosing each JavaScript file inside a self-executing
+  function. The self-executing function keeps the strict scoped to the file,
+  so its variables and methods are not exposed to other JavaScript files in
+  the product.
+
+  ..  Note ::
+      Using strict will throw exceptions for common coding errors, like
+      accessing global vars, that normally are not flagged.
+
+  Example:
+
+  .. code ::
+
+           (function(){
+             'use strict';
+             // code...
+           })();
+
+* Use ``forEach`` | ``each`` when looping whenever possible. AngularJS, and
+  jQuery both provide for each loops that provide both iteration and scope.
+
+  AngularJS:
+
+  .. code ::
+
+     angular.forEach(objectToIterateOver, function(value, key) {
+        // loop logic
+     });
+
+  jQuery:
+
+  .. code ::
+
+     $.each(objectToIterateOver, function( key, value ) {
+       // loop logic
+     });
+
+
+* Do not put variables or functions in the global namespace. There are several
+  reasons why globals are bad, one being that all JavaScript included in an
+  application runs in the same scope. The issue with that is if another script
+  has the same method or variable names they overwrite each other.
+* Always put ``var`` in front of your variables. Not putting ``var`` in front
+  of a variable puts that variable into the global space, see above.
+* Do not use ``eval( )``. The eval (expression) evaluates the expression
+  passed to it. This can open up your code to security vulnerabilities and
+  other issues.
+* Do not use '``with`` object {code}'. The ``with`` statement is used to access
+  properties of an object. The issue with ``with`` is that its execution is not
+  consistent, so by reading the statement in the code it is not always clear
+  how it is being used.
+
+
+**Readable & Maintainable**
+
+* Give meaningful names to methods and variables.
+* Avoid excessive nesting.
+* Avoid HTML and CSS in JS code. HTML and CSS belong in templates and
+  stylesheets respectively. For example:
+
+  * In our HTML files, we should focus on layout.
+
+    1. Reduce the small/random ``<script>`` and ``<style>`` elements in HTML.
+
+    2. Avoid in-lining styles into element in HTML. Use attributes and
+       classes instead.
+  * In our JS files, we should focus on logic rather than attempting to
+    manipulate/style elements.
+
+    1. Avoid statements such as ``element.css({property1,property2...})`` they
+       belong in a CSS class.
+
+    2. Avoid statements such as ``$("<div><span>abc</span></div>")`` they
+       belong in a HTML template file. Use ``show`` | ``hide`` | ``clone``
+       elements if dynamic content is required.
+
+    3. Avoid using classes for detection purposes only, instead, defer to
+       attributes. For example to find a div:
+      .. code ::
+
+       <div class="something"></div>
+         $(".something").html("Don't find me this way!");
+
+      Is better found like:
+
+      .. code ::
+
+       <div data-something></div>
+         $("div[data-something]").html("You found me correctly!");
+
+* Avoid commented-out code.
+* Avoid dead code.
+
+**Performance**
+
+* Avoid creating instances of the same object repeatedly within the same scope.
+  Instead, assign the object to a variable and re-use the existing object. For
+  example:
+
+  .. code ::
+
+     $(document).on('click', function() { /* do something. */ });
+     $(document).on('mouseover', function() { /* do something. */ });
+
+  A better approach:
+
+  .. code ::
+
+     var $document = $(document);
+     $document.on('click', function() { /* do something. */ });
+     $document.on('mouseover', function() { /* do something. */ });
+
+  In the first approach a jQuery object for ``document`` is created each time.
+  The second approach creates only one jQuery object and reuses it. Each object
+  needs to be created, uses memory, and needs to be garbage collected.
+
+Recommended
+~~~~~~~~~~~
+
+
+**Readable & Maintainable**
+
+* Put a comment at the top of every file explaining what the purpose of this
+  file is when the naming is not obvious. This guideline also applies to
+  methods and variables.
+* Source-code formatting – (or “beautification”) is recommended but should be
+  used with caution. Keep in mind that if you reformat an entire file that was
+  not previously formatted the same way, it will mess up the diff during the
+  code review. It is best to use a formatter when you are working on a new file
+  by yourself, or with others who are using the same formatter. You can also
+  choose to format a selected portion of a file only. Instructions for setting
+  up JSHint for Eclipse, Sublime Text, Notepad++ and WebStorm/PyCharm are
+  provided_.
+* Use 2 spaces for code indentation.
+* Use ``{ }`` for ``if``, ``for``, ``while`` statements, and don't combine them
+  on one line.
+
+  .. code ::
+
+    // Do this          //Not this          // Not this
+    if(x) {             if(x)               if(x) y =x;
+      y=x;                y=x;
+    }
+* Use JSHint in your development environment.
+
+
+AngularJS
+---------
+The following standards are divided into required and recommended sections.
+
+Required
+~~~~~~~~
+
+* Organization: Define your Angular app under the root Angular folder (such
+  as ``horizon/static/horizon/js/angular/hz.table.js``). If your application is
+  small enough you can choose to lump your Controllers, Directives, Filters,
+  etc.. all in the one file. But if you find your file is growing too large and
+  readability is becoming an issue, consider moving functionality into their
+  own files under sub folders as described in the Recommended section.
+* Separate presentation and business logic. Controllers are for business logic,
+  and directives for presentation.
+
+  * Controllers and Services should not contain DOM references. Directives
+    should.
+  * Services are singletons and contain logic independent of view.
+* Scope is not the model (model is your JavaScript Objects). The scope
+  references the model.
+
+  * Read-only in templates.
+  * Write-only in controllers.
+* Since Django already uses ``{{ }}``, use ``{$ $}`` or ``{% verbatim %}``
+  instead.
+* For localization in JavaScript files use either ``gettext`` or ``ngettext``.
+  Only those two methods are recognized by our tools and will be included in
+  the .po file after running ``./run_tests --makemessages``.
+
+  .. code ::
+
+    // recognized
+    gettext("translatable text");
+    ngettext("translatable text");
+
+    // not recognized
+    var _ = gettext;
+    _('translatable text');
+
+    $window.gettext('translatable text');
+
+* For localization of AngularJS templates in Horizon, there are a couple of
+  ways to do it.
+
+  * Using ``gettext`` or ``ngettext`` function that is passed from server to
+    client. If you're only translating a few things, this methodology is ok
+    to use.
+
+  * Use an Angular directive that will fetch a django template instead of a
+    static HTML file. The advantage here is that you can now use
+    ``{% trans %}`` and anything else Django has to offer. You can also cache
+    the page according to the locale if you know that the content is static.
+
+Recommended
+~~~~~~~~~~~
+
+* Use these directories: filters, directives, controllers, and templates.
+
+  .. Note ::
+
+     When you use the directory name, the file name does not have to include
+     words like "directive" or "filter".
+
+* Put "Ctrl" on the end of a controller file name.
+* Don't use variables like "app" that are at the highest level in the file,
+  when Angular gives an alternative. For example use function chaining:
+
+  .. code ::
+
+    angular.module('my_module')
+       .controller('my_controller', ['$scope', function($scope) {
+      // controller code
+    }]).service('my_service', ['$scope', function($scope) {
+      // service code
+    }]);
+
+
+JSHint
+------
+JSHint is a great tool to be used during your code editing to improve
+JavaScript quality by checking your code against a configurable list of checks.
+Therefore, JavaScript developers should configure their editors to use JSHint
+to warn them of any such errors so they can be addressed. Since JSHint has a
+ton of configuration options to choose from, links are provided below to the
+options Horizon wants enforced along with the instructions for setting up
+JSHint for Eclipse, Sublime Text, Notepad++ and WebStorm/PyCharm.
+
+JSHint configuration file: `.jshintrc`_
+
+Instructions for setting up JSHint: `JSHint setup instructions`_
+
+..  Note ::
+    JSHint is part of the automated unit tests performed by Jenkins. The
+    automated test use the default configurations, which are less strict than
+    the configurations we recommended to run in your local development
+    environment.
+
+.. _.jshintrc: https://wiki.openstack.org/wiki/Horizon/Javascript/EditorConfig/Settings#.jshintrc
+.. _JSHint setup instructions: https://wiki.openstack.org/wiki/Horizon/Javascript/EditorConfig
+.. _provided: https://wiki.openstack.org/wiki/Horizon/Javascript/EditorConfig
+
+
 
 CSS
 ---

@@ -63,15 +63,14 @@ class GeneralTab(tabs.Tab):
             if getattr(cluster, 'neutron_management_network', None):
                 net_id = cluster.neutron_management_network
                 network = neutron.network_get(request, net_id)
-                network.set_id_as_name_if_empty()
-                net_name = network.name
+                net_name = network.name_or_id
             else:
                 net_name = None
 
             cluster_info.update({"cluster": cluster,
-                "base_image": base_image,
-                "cluster_template": cluster_template,
-                "network": net_name})
+                                 "base_image": base_image,
+                                 "cluster_template": cluster_template,
+                                 "network": net_name})
         except Exception as e:
             LOG.error("Unable to fetch cluster details: %s" % str(e))
 
@@ -102,9 +101,13 @@ class NodeGroupsTab(tabs.Tab):
                         self._get_floating_ip_pool_name(
                             request, ng["floating_ip_pool"]))
 
-                ng["node_group_template"] = helpers.safe_call(
-                    sahara.node_group_templates.get,
-                    ng.get("node_group_template_id", None))
+                if ng.get("node_group_template_id", None):
+                    ng["node_group_template"] = helpers.safe_call(
+                        sahara.node_group_templates.get,
+                        ng["node_group_template_id"])
+
+                ng["security_groups_full"] = helpers.get_security_groups(
+                    request, ng["security_groups"])
         except Exception:
             cluster = {}
             exceptions.handle(request,
@@ -130,7 +133,7 @@ class Instance(object):
 
 class InstancesTable(tables.DataTable):
     name = tables.Column("name",
-                         link=("horizon:project:instances:detail"),
+                         link="horizon:project:instances:detail",
                          verbose_name=_("Name"))
 
     internal_ip = tables.Column("internal_ip",
@@ -139,10 +142,9 @@ class InstancesTable(tables.DataTable):
     management_ip = tables.Column("management_ip",
                                   verbose_name=_("Management IP"))
 
-    class Meta:
+    class Meta(object):
         name = "cluster_instances"
-        # Just ignoring the name.
-        verbose_name = _(" ")
+        verbose_name = _("Cluster Instances")
 
 
 class InstancesTab(tabs.TableTab):

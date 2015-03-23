@@ -42,7 +42,7 @@ class KeyPairViewTests(test.TestCase):
         api.network.floating_ip_supported(IsA(http.HttpRequest)) \
             .AndReturn(True)
         api.nova.keypair_list(IsA(http.HttpRequest)) \
-                .AndReturn(self.keypairs.list())
+            .AndReturn(self.keypairs.list())
         api.nova.keypair_delete(IsA(http.HttpRequest), keypair.name)
         self.mox.ReplayAll()
 
@@ -60,9 +60,9 @@ class KeyPairViewTests(test.TestCase):
         api.network.floating_ip_supported(IsA(http.HttpRequest)) \
             .AndReturn(True)
         api.nova.keypair_list(IsA(http.HttpRequest)) \
-                .AndReturn(self.keypairs.list())
+            .AndReturn(self.keypairs.list())
         api.nova.keypair_delete(IsA(http.HttpRequest), keypair.name) \
-                .AndRaise(self.exceptions.nova)
+            .AndRaise(self.exceptions.nova)
         self.mox.ReplayAll()
 
         formData = {'action': 'keypairs__delete__%s' % keypair.name}
@@ -72,8 +72,8 @@ class KeyPairViewTests(test.TestCase):
     def test_create_keypair_get(self):
         res = self.client.get(
             reverse('horizon:project:access_and_security:keypairs:create'))
-        self.assertTemplateUsed(res,
-                        'project/access_and_security/keypairs/create.html')
+        self.assertTemplateUsed(
+            res, 'project/access_and_security/keypairs/create.html')
 
     def test_download_keypair_get(self):
         keypair_name = "keypair"
@@ -99,6 +99,23 @@ class KeyPairViewTests(test.TestCase):
         res = self.client.get(url, context)
 
         self.assertTrue(res.has_header('content-disposition'))
+
+    def test_keypair_detail_get(self):
+        keypair = self.keypairs.first()
+        keypair.private_key = "secrete"
+
+        self.mox.StubOutWithMock(api.nova, 'keypair_get')
+        api.nova.keypair_get(IsA(http.HttpRequest),
+                             keypair.name).AndReturn(keypair)
+        self.mox.ReplayAll()
+
+        context = {'keypair_name': keypair.name}
+        url = reverse('horizon:project:access_and_security:keypairs:detail',
+                      kwargs={'keypair_name': keypair.name})
+        res = self.client.get(url, context)
+
+        self.assertContains(res, "<h1>Key Pair Details</h1>", 1, 200)
+        self.assertContains(res, "<dd>%s</dd>" % keypair.name, 2, 200)
 
     @test.create_stubs({api.nova: ("keypair_create", "keypair_delete")})
     def test_regenerate_keypair_get(self):
@@ -139,7 +156,7 @@ class KeyPairViewTests(test.TestCase):
         public_key = "ABCDEF"
 
         api.nova.keypair_import(IsA(http.HttpRequest), key_name, public_key) \
-                        .AndRaise(self.exceptions.nova)
+            .AndRaise(self.exceptions.nova)
         self.mox.ReplayAll()
 
         formData = {'method': 'ImportKeypair',
@@ -169,7 +186,7 @@ class KeyPairViewTests(test.TestCase):
         keypair = self.keypairs.first()
 
         api.nova.keypair_create(IsA(http.HttpRequest), keypair.name) \
-                        .AndRaise(self.exceptions.nova)
+            .AndRaise(self.exceptions.nova)
         self.mox.ReplayAll()
 
         context = {'keypair_name': keypair.name}

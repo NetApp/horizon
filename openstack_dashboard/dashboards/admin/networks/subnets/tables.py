@@ -15,6 +15,7 @@
 import logging
 
 from django.core.urlresolvers import reverse
+from django.core.urlresolvers import reverse_lazy
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext_lazy
 
@@ -88,11 +89,12 @@ class UpdateSubnet(proj_tables.SubnetPolicyTargetMixin, tables.LinkAction):
 
 
 class SubnetsTable(tables.DataTable):
-    name = tables.Column("name", verbose_name=_("Name"),
+    name = tables.Column("name_or_id", verbose_name=_("Name"),
                          link='horizon:admin:networks:subnets:detail')
     cidr = tables.Column("cidr", verbose_name=_("CIDR"))
     ip_version = tables.Column("ipver_str", verbose_name=_("IP Version"))
     gateway_ip = tables.Column("gateway_ip", verbose_name=_("Gateway IP"))
+    failure_url = reverse_lazy('horizon:admin:networks:index')
 
     def get_object_display(self, subnet):
         return subnet.id
@@ -109,8 +111,9 @@ class SubnetsTable(tables.DataTable):
             exceptions.handle(self.request, msg, redirect=self.failure_url)
         return network
 
-    class Meta:
+    class Meta(object):
         name = "subnets"
         verbose_name = _("Subnets")
         table_actions = (CreateSubnet, DeleteSubnet)
         row_actions = (UpdateSubnet, DeleteSubnet,)
+        hidden_title = False

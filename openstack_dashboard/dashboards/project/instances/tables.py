@@ -81,8 +81,9 @@ def is_deleting(instance):
 class TerminateInstance(policy.PolicyTargetMixin, tables.BatchAction):
     name = "terminate"
     classes = ("btn-danger",)
-    icon = "off"
+    icon = "remove"
     policy_rules = (("compute", "compute:delete"),)
+    help_text = _("Terminated instances are not recoverable.")
 
     @staticmethod
     def action_present(count):
@@ -112,6 +113,8 @@ class RebootInstance(policy.PolicyTargetMixin, tables.BatchAction):
     name = "reboot"
     classes = ('btn-danger', 'btn-reboot')
     policy_rules = (("compute", "compute:reboot"),)
+    help_text = _("Restarted instances will lose any data"
+                  " not saved in persistent storage.")
 
     @staticmethod
     def action_present(count):
@@ -215,7 +218,8 @@ class TogglePause(tables.BatchAction):
         has_permission = True
         policy_check = getattr(settings, "POLICY_CHECK_FUNCTION", None)
         if policy_check:
-            has_permission = policy_check(policy, request,
+            has_permission = policy_check(
+                policy, request,
                 target={'project_id': getattr(instance, 'tenant_id', None)})
 
         return (has_permission
@@ -282,7 +286,8 @@ class ToggleSuspend(tables.BatchAction):
         has_permission = True
         policy_check = getattr(settings, "POLICY_CHECK_FUNCTION", None)
         if policy_check:
-            has_permission = policy_check(policy, request,
+            has_permission = policy_check(
+                policy, request,
                 target={'project_id': getattr(instance, 'tenant_id', None)})
 
         return (has_permission
@@ -340,6 +345,25 @@ class LaunchLink(tables.LinkAction):
     def single(self, table, request, object_id=None):
         self.allowed(request, None)
         return HttpResponse(self.render())
+
+
+class LaunchLinkNG(LaunchLink):
+    name = "launch-ng"
+    verbose_name = _("Launch Instance NG")
+    ajax = False
+    classes = ("btn-launch")
+
+    def __init__(self,
+                 attrs={
+                     "ng-controller": "LaunchInstanceModalCtrl",
+                     "ng-click": "openLaunchInstanceWizard()"
+                 },
+                 **kwargs):
+        kwargs['preempt'] = True
+        super(LaunchLink, self).__init__(attrs, **kwargs)
+
+    def get_link_url(self, datum=None):
+        return "javascript:void(0);"
 
 
 class EditInstance(policy.PolicyTargetMixin, tables.LinkAction):
@@ -535,9 +559,10 @@ class AssociateIP(policy.PolicyTargetMixin, tables.LinkAction):
 
     def get_link_url(self, datum):
         base_url = urlresolvers.reverse(self.url)
-        next = urlresolvers.reverse("horizon:project:instances:index")
-        params = {"instance_id": self.table.get_object_id(datum),
-                  workflows.IPAssociationWorkflow.redirect_param_name: next}
+        next_url = self.table.get_full_url()
+        params = {
+            "instance_id": self.table.get_object_id(datum),
+            workflows.IPAssociationWorkflow.redirect_param_name: next_url}
         params = urlencode(params)
         return "?".join([base_url, params])
 
@@ -568,7 +593,7 @@ class SimpleAssociateIP(policy.PolicyTargetMixin, tables.Action):
         except Exception:
             exceptions.handle(request,
                               _("Unable to associate floating IP."))
-        return shortcuts.redirect("horizon:project:instances:index")
+        return shortcuts.redirect(request.get_full_path())
 
 
 class SimpleDisassociateIP(policy.PolicyTargetMixin, tables.Action):
@@ -599,8 +624,7 @@ class SimpleDisassociateIP(policy.PolicyTargetMixin, tables.Action):
             # off the first one.
             if fips:
                 fip = fips.pop()
-                api.network.floating_ip_disassociate(request,
-                                                     fip.id, fip.port_id)
+                api.network.floating_ip_disassociate(request, fip.id)
                 messages.success(request,
                                  _("Successfully disassociated "
                                    "floating IP: %s") % fip.ip)
@@ -609,7 +633,7 @@ class SimpleDisassociateIP(policy.PolicyTargetMixin, tables.Action):
         except Exception:
             exceptions.handle(request,
                               _("Unable to disassociate floating IP."))
-        return shortcuts.redirect("horizon:project:instances:index")
+        return shortcuts.redirect(request.get_full_path())
 
 
 def instance_fault_to_friendly_message(instance):
@@ -629,8 +653,8 @@ def get_instance_error(instance):
     if instance.status.lower() != 'error':
         return None
     message = instance_fault_to_friendly_message(instance)
-    preamble = _('Failed to launch instance "%s"'
-                 ) % instance.name or instance.id
+    preamble = _('Failed to perform requested operation on instance "%s", the '
+                 'instance has an error status') % instance.name or instance.id
     message = string_concat(preamble, ': ', message)
     return message
 
@@ -640,8 +664,14 @@ class UpdateRow(tables.Row):
 
     def get_data(self, request, instance_id):
         instance = api.nova.server_get(request, instance_id)
-        instance.full_flavor = api.nova.flavor_get(request,
-                                                   instance.flavor["id"])
+        try:
+            instance.full_flavor = api.nova.flavor_get(request,
+                                                       instance.flavor["id"])
+        except Exception:
+            exceptions.handle(request,
+                              _('Unable to retrieve flavor information '
+                                'for instance "%s".') % instance_id,
+                              ignore=True)
         error = get_instance_error(instance)
         if error:
             messages.error(request, error)
@@ -650,6 +680,7 @@ class UpdateRow(tables.Row):
 
 class StartInstance(policy.PolicyTargetMixin, tables.BatchAction):
     name = "start"
+    classes = ('btn-confirm',)
     policy_rules = (("compute", "compute:start"),)
 
     @staticmethod
@@ -669,7 +700,8 @@ class StartInstance(policy.PolicyTargetMixin, tables.BatchAction):
         )
 
     def allowed(self, request, instance):
-        return instance.status in ("SHUTDOWN", "SHUTOFF", "CRASHED")
+        return ((instance is None) or
+                (instance.status in ("SHUTDOWN", "SHUTOFF", "CRASHED")))
 
     def action(self, request, obj_id):
         api.nova.server_start(request, obj_id)
@@ -679,6 +711,7 @@ class StopInstance(policy.PolicyTargetMixin, tables.BatchAction):
     name = "stop"
     classes = ('btn-danger',)
     policy_rules = (("compute", "compute:stop"),)
+    help_text = _("To power off a specific instance.")
 
     @staticmethod
     def action_present(count):
@@ -699,17 +732,95 @@ class StopInstance(policy.PolicyTargetMixin, tables.BatchAction):
         )
 
     def allowed(self, request, instance):
-        return ((get_power_state(instance)
-                in ("RUNNING", "PAUSED", "SUSPENDED"))
-                and not is_deleting(instance))
+        return ((instance is None)
+                or ((get_power_state(instance) in ("RUNNING", "SUSPENDED"))
+                    and not is_deleting(instance)))
 
     def action(self, request, obj_id):
         api.nova.server_stop(request, obj_id)
 
 
+class LockInstance(policy.PolicyTargetMixin, tables.BatchAction):
+    name = "lock"
+    policy_rules = (("compute", "compute_extension:admin_actions:lock"),)
+
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Lock Instance",
+            u"Lock Instances",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Locked Instance",
+            u"Locked Instances",
+            count
+        )
+
+    # TODO(akrivoka): When the lock status is added to nova, revisit this
+    # to only allow unlocked instances to be locked
+    def allowed(self, request, instance):
+        if not api.nova.extension_supported('AdminActions', request):
+            return False
+        return True
+
+    def action(self, request, obj_id):
+        api.nova.server_lock(request, obj_id)
+
+
+class UnlockInstance(policy.PolicyTargetMixin, tables.BatchAction):
+    name = "unlock"
+    policy_rules = (("compute", "compute_extension:admin_actions:unlock"),)
+
+    @staticmethod
+    def action_present(count):
+        return ungettext_lazy(
+            u"Unlock Instance",
+            u"Unlock Instances",
+            count
+        )
+
+    @staticmethod
+    def action_past(count):
+        return ungettext_lazy(
+            u"Unlocked Instance",
+            u"Unlocked Instances",
+            count
+        )
+
+    # TODO(akrivoka): When the lock status is added to nova, revisit this
+    # to only allow locked instances to be unlocked
+    def allowed(self, request, instance):
+        if not api.nova.extension_supported('AdminActions', request):
+            return False
+        return True
+
+    def action(self, request, obj_id):
+        api.nova.server_unlock(request, obj_id)
+
+
 def get_ips(instance):
     template_name = 'project/instances/_instance_ips.html'
-    context = {"instance": instance}
+    ip_groups = {}
+
+    for ip_group, addresses in instance.addresses.iteritems():
+        ip_groups[ip_group] = {}
+        ip_groups[ip_group]["floating"] = []
+        ip_groups[ip_group]["non_floating"] = []
+
+        for address in addresses:
+            if ('OS-EXT-IPS:type' in address and
+               address['OS-EXT-IPS:type'] == "floating"):
+                ip_groups[ip_group]["floating"].append(address)
+            else:
+                ip_groups[ip_group]["non_floating"].append(address)
+
+    context = {
+        "ip_groups": ip_groups,
+    }
     return template.loader.render_to_string(template_name, context)
 
 
@@ -726,7 +837,8 @@ def get_size(instance):
             "id": instance.id,
             "size_disk": size_disk,
             "size_ram": size_ram,
-            "vcpus": instance.full_flavor.vcpus
+            "vcpus": instance.full_flavor.vcpus,
+            "flavor_id": instance.full_flavor.id
         }
         return template.loader.render_to_string(template_name, context)
     return _("Not available")
@@ -774,7 +886,9 @@ STATUS_DISPLAY_CHOICES = (
                                         u"Shelved Offloaded")),
 )
 
+TASK_DISPLAY_NONE = pgettext_lazy("Task status of an Instance", u"None")
 
+# Mapping of task states taken from Nova's nova/compute/task_states.py
 TASK_DISPLAY_CHOICES = (
     ("scheduling", pgettext_lazy("Task status of an Instance",
                                  u"Scheduling")),
@@ -808,8 +922,16 @@ TASK_DISPLAY_CHOICES = (
     ("resize_confirming", pgettext_lazy("Task status of an Instance",
                                         u"Confirming Resize or Migrate")),
     ("rebooting", pgettext_lazy("Task status of an Instance", u"Rebooting")),
+    ("reboot_pending", pgettext_lazy("Task status of an Instance",
+                                     u"Reboot Pending")),
+    ("reboot_started", pgettext_lazy("Task status of an Instance",
+                                     u"Reboot Started")),
     ("rebooting_hard", pgettext_lazy("Task status of an Instance",
                                      u"Rebooting Hard")),
+    ("reboot_pending_hard", pgettext_lazy("Task status of an Instance",
+                                          u"Reboot Pending Hard")),
+    ("reboot_started_hard", pgettext_lazy("Task status of an Instance",
+                                          u"Reboot Started Hard")),
     ("pausing", pgettext_lazy("Task status of an Instance", u"Pausing")),
     ("unpausing", pgettext_lazy("Task status of an Instance", u"Resuming")),
     ("suspending", pgettext_lazy("Task status of an Instance",
@@ -878,10 +1000,11 @@ class InstancesTable(tables.DataTable):
         ("paused", True),
         ("error", False),
         ("rescue", True),
+        ("shelved", True),
         ("shelved_offloaded", True),
     )
     name = tables.Column("name",
-                         link=("horizon:project:instances:detail"),
+                         link="horizon:project:instances:detail",
                          verbose_name=_("Instance Name"))
     image_name = tables.Column("image_name",
                                verbose_name=_("Image Name"))
@@ -902,7 +1025,7 @@ class InstancesTable(tables.DataTable):
                        verbose_name=_("Availability Zone"))
     task = tables.Column("OS-EXT-STS:task_state",
                          verbose_name=_("Task"),
-                         filters=(title, filters.replace_underscores),
+                         empty_value=TASK_DISPLAY_NONE,
                          status=True,
                          status_choices=TASK_STATUS_CHOICES,
                          display_choices=TASK_DISPLAY_CHOICES)
@@ -916,17 +1039,24 @@ class InstancesTable(tables.DataTable):
                                      filters.timesince_sortable),
                             attrs={'data-type': 'timesince'})
 
-    class Meta:
+    class Meta(object):
         name = "instances"
         verbose_name = _("Instances")
         status_columns = ["status", "task"]
         row_class = UpdateRow
-        table_actions = (LaunchLink, SoftRebootInstance, TerminateInstance,
-                         InstancesFilterAction)
+        table_actions_menu = (StartInstance, StopInstance, SoftRebootInstance)
+        launch_actions = ()
+        if getattr(settings, 'LAUNCH_INSTANCE_LEGACY_ENABLED', True):
+            launch_actions = (LaunchLink,) + launch_actions
+        if getattr(settings, 'LAUNCH_INSTANCE_NG_ENABLED', False):
+            launch_actions = (LaunchLinkNG,) + launch_actions
+        table_actions = launch_actions + (TerminateInstance,
+                                          InstancesFilterAction)
         row_actions = (StartInstance, ConfirmResize, RevertResize,
                        CreateSnapshot, SimpleAssociateIP, AssociateIP,
                        SimpleDisassociateIP, EditInstance,
                        DecryptInstancePassword, EditInstanceSecurityGroups,
                        ConsoleLink, LogLink, TogglePause, ToggleSuspend,
-                       ResizeLink, SoftRebootInstance, RebootInstance,
+                       ResizeLink, LockInstance, UnlockInstance,
+                       SoftRebootInstance, RebootInstance,
                        StopInstance, RebuildInstance, TerminateInstance)

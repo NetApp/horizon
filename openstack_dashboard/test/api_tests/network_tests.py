@@ -196,8 +196,7 @@ class NetworkApiNovaFloatingIpTests(NetworkApiNovaTestBase):
         self.mox.ReplayAll()
 
         api.network.floating_ip_disassociate(self.request,
-                                             floating_ip.id,
-                                             server.id)
+                                             floating_ip.id)
 
     def test_floating_ip_target_list(self):
         servers = self.servers.list()
@@ -287,7 +286,7 @@ class NetworkApiNeutronTests(NetworkApiNeutronTestBase):
                 .AndReturn({'floatingips': assoc_fips})
             self.qclient.list_ports(tenant_id=tenant_id) \
                 .AndReturn({'ports': self.api_ports.list()})
-        self.qclient.list_networks(id=server_network_ids) \
+        self.qclient.list_networks(id=set(server_network_ids)) \
             .AndReturn({'networks': server_networks})
         self.qclient.list_subnets() \
             .AndReturn({'subnets': self.api_subnets.list()})
@@ -406,8 +405,9 @@ class NetworkApiNeutronSecurityGroupTests(NetworkApiNeutronTestBase):
     def test_security_group_create(self):
         secgroup = self.api_q_secgroups.list()[1]
         body = {'security_group':
-                    {'name': secgroup['name'],
-                     'description': secgroup['description']}}
+                {'name': secgroup['name'],
+                 'description': secgroup['description'],
+                 'tenant_id': self.request.user.project_id}}
         self.qclient.create_security_group(body) \
             .AndReturn({'security_group': copy.deepcopy(secgroup)})
         self.mox.ReplayAll()
@@ -421,8 +421,8 @@ class NetworkApiNeutronSecurityGroupTests(NetworkApiNeutronTestBase):
         secgroup['name'] = 'newname'
         secgroup['description'] = 'new description'
         body = {'security_group':
-                    {'name': secgroup['name'],
-                     'description': secgroup['description']}}
+                {'name': secgroup['name'],
+                 'description': secgroup['description']}}
         self.qclient.update_security_group(secgroup['id'], body) \
             .AndReturn({'security_group': secgroup})
         self.mox.ReplayAll()
@@ -638,7 +638,8 @@ class NetworkApiNeutronFloatingIpTests(NetworkApiNeutronTestBase):
         ext_net = ext_nets[0]
         fip = self.api_q_floating_ips.first()
         self.qclient.create_floatingip(
-            {'floatingip': {'floating_network_id': ext_net['id']}}) \
+            {'floatingip': {'floating_network_id': ext_net['id'],
+                            'tenant_id': self.request.user.project_id}}) \
             .AndReturn({'floatingip': fip})
         self.mox.ReplayAll()
 
@@ -671,15 +672,11 @@ class NetworkApiNeutronFloatingIpTests(NetworkApiNeutronTestBase):
 
     def test_floating_ip_disassociate(self):
         fip = self.api_q_floating_ips.list()[1]
-        assoc_port = self.api_ports.list()[1]
-        ip_address = assoc_port['fixed_ips'][0]['ip_address']
-        target_id = '%s_%s' % (assoc_port['id'], ip_address)
         self.qclient.update_floatingip(fip['id'],
                                        {'floatingip': {'port_id': None}})
         self.mox.ReplayAll()
 
-        api.network.floating_ip_disassociate(self.request, fip['id'],
-                                             target_id)
+        api.network.floating_ip_disassociate(self.request, fip['id'])
 
     def _get_target_id(self, port):
         param = {'id': port['id'],
@@ -691,16 +688,23 @@ class NetworkApiNeutronFloatingIpTests(NetworkApiNeutronTestBase):
                  'addr': port['fixed_ips'][0]['ip_address']}
         return 'server_%(svrid)s: %(addr)s' % param
 
+    def _subs_from_port(self, port):
+        return [ip['subnet_id'] for ip in port['fixed_ips']]
+
+    @override_settings(OPENSTACK_NEUTRON_NETWORK={'enable_lb': True})
     def test_floating_ip_target_list(self):
         ports = self.api_ports.list()
         # Port on the first subnet is connected to a router
         # attached to external network in neutron_data.
         subnet_id = self.subnets.first().id
-        target_ports = [(self._get_target_id(p),
-                         self._get_target_name(p)) for p in ports
-                        if (not p['device_owner'].startswith('network:') and
-                            subnet_id in [ip['subnet_id']
-                                          for ip in p['fixed_ips']])]
+        shared_nets = [n for n in self.api_networks.list() if n['shared']]
+        shared_subnet_ids = [s for n in shared_nets for s in n['subnets']]
+        target_ports = [
+            (self._get_target_id(p), self._get_target_name(p)) for p in ports
+            if (not p['device_owner'].startswith('network:') and
+                (subnet_id in self._subs_from_port(p) or
+                 (set(shared_subnet_ids) & set(self._subs_from_port(p)))))
+        ]
         filters = {'tenant_id': self.request.user.tenant_id}
         self.qclient.list_ports(**filters).AndReturn({'ports': ports})
         servers = self.servers.list()
@@ -716,6 +720,12 @@ class NetworkApiNeutronFloatingIpTests(NetworkApiNeutronTestBase):
             .AndReturn({'networks': ext_nets})
         self.qclient.list_routers().AndReturn({'routers':
                                                self.api_routers.list()})
+        self.qclient.list_networks(shared=True).AndReturn({'networks':
+                                                           shared_nets})
+        shared_subs = [s for s in self.api_subnets.list()
+                       if s['id'] in shared_subnet_ids]
+        self.qclient.list_subnets().AndReturn({'subnets': shared_subs})
+        self.qclient.list_vips().AndReturn({'vips': self.vips.list()})
 
         self.mox.ReplayAll()
 

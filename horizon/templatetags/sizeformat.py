@@ -20,6 +20,8 @@
 Template tags for displaying sizes
 """
 
+from oslo_utils import units
+
 from django import template
 from django.utils import formats
 from django.utils.translation import ugettext_lazy as _
@@ -47,26 +49,21 @@ def filesizeformat(bytes, filesize_number_format):
         bytes = float(bytes)
     except (TypeError, ValueError, UnicodeDecodeError):
         return ungettext_lazy("%(size)d Byte",
-                "%(size)d Bytes", 0) % {'size': 0}
+                              "%(size)d Bytes", 0) % {'size': 0}
 
-    if bytes < 1024:
+    if bytes < units.Ki:
         bytes = int(bytes)
         return ungettext_lazy("%(size)d Byte",
-                "%(size)d Bytes", bytes) % {'size': bytes}
-    if bytes < 1024 * 1024:
-        return _("%s KB") % \
-            filesize_number_format(bytes / 1024)
-    if bytes < 1024 * 1024 * 1024:
-        return _("%s MB") % \
-            filesize_number_format(bytes / (1024 * 1024))
-    if bytes < 1024 * 1024 * 1024 * 1024:
-        return _("%s GB") % \
-            filesize_number_format(bytes / (1024 * 1024 * 1024))
-    if bytes < 1024 * 1024 * 1024 * 1024 * 1024:
-        return _("%s TB") % \
-            filesize_number_format(bytes / (1024 * 1024 * 1024 * 1024))
-    return _("%s PB") % \
-        filesize_number_format(bytes / (1024 * 1024 * 1024 * 1024 * 1024))
+                              "%(size)d Bytes", bytes) % {'size': bytes}
+    if bytes < units.Mi:
+        return _("%s KB") % filesize_number_format(bytes / units.Ki)
+    if bytes < units.Gi:
+        return _("%s MB") % filesize_number_format(bytes / units.Mi)
+    if bytes < units.Ti:
+        return _("%s GB") % filesize_number_format(bytes / units.Gi)
+    if bytes < units.Pi:
+        return _("%s TB") % filesize_number_format(bytes / units.Ti)
+    return _("%s PB") % filesize_number_format(bytes / units.Pi)
 
 
 def float_cast_filesizeformat(value, multiplier=1, format=int_format):
@@ -74,20 +71,20 @@ def float_cast_filesizeformat(value, multiplier=1, format=int_format):
         value = float(value)
         value = filesizeformat(value * multiplier, format).replace(' ', '')
     except (TypeError, ValueError):
-        value = value or _('0 bytes')
+        value = value or _('0 Bytes')
     return value
 
 
 @register.filter(name='mbformat')
 def mbformat(mb):
-    return float_cast_filesizeformat(mb, 1024 * 1024, int_format)
+    return float_cast_filesizeformat(mb, units.Mi, int_format)
 
 
 @register.filter(name='mb_float_format')
 def mb_float_format(mb):
-    return float_cast_filesizeformat(mb, 1024 * 1024, float_format)
+    return float_cast_filesizeformat(mb, units.Mi, float_format)
 
 
 @register.filter(name='diskgbformat')
 def diskgbformat(gb):
-    return float_cast_filesizeformat(gb, 1024 * 1024 * 1024, float_format)
+    return float_cast_filesizeformat(gb, units.Gi, float_format)

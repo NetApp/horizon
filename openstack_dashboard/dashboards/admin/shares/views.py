@@ -25,15 +25,14 @@ from django.utils.translation import ugettext_lazy as _
 from horizon import exceptions
 from horizon import forms
 from horizon import tabs
+from horizon import workflows
 
 from openstack_dashboard.api import manila
-from openstack_dashboard.dashboards.admin.shares \
-    import forms as project_forms
-from openstack_dashboard.dashboards.admin.shares \
-    import tabs as project_tabs
-
+from openstack_dashboard.dashboards.admin.shares import forms as project_forms
+from openstack_dashboard.dashboards.admin.shares import tabs as project_tabs
 from openstack_dashboard.dashboards.project.shares.shares \
     import views as share_views
+import openstack_dashboard.dashboards.admin.shares.workflows as share_workflows
 
 
 class IndexView(tabs.TabbedTableView, share_views.ShareTableMixIn):
@@ -52,6 +51,21 @@ class CreateShareTypeView(forms.ModalFormView):
 
     def get_success_url(self):
         return reverse(self.success_url)
+
+
+class ManageShareTypeAccessView(workflows.WorkflowView):
+    workflow_class = share_workflows.ManageShareTypeAccessWorkflow
+    template_name = "admin/shares/manage_share_type_access.html"
+    success_url = 'horizon:project:shares:index'
+
+    def get_initial(self):
+        return {'id': self.kwargs["share_type_id"]}
+
+    def get_context_data(self, **kwargs):
+        context = super(ManageShareTypeAccessView, self).get_context_data(
+            **kwargs)
+        context['id'] = self.kwargs['share_type_id']
+        return context
 
 
 class UpdateShareTypeView(forms.ModalFormView):
